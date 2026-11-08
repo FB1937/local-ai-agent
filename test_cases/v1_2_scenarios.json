@@ -1,0 +1,63 @@
+{
+  "search_planning": [
+    {
+      "id": "S01",
+      "query": "Python 최신 안정 버전",
+      "expected": "current_year_in_query"
+    },
+    {
+      "id": "S02",
+      "query": "Python 3.10 최초 출시일",
+      "expected": "preserve_historical_constraint"
+    },
+    {
+      "id": "S03",
+      "query": "오늘 부산 날씨",
+      "expected": "time_range_day"
+    },
+    {
+      "id": "S04",
+      "query": "REST API 원리",
+      "expected": "no_time_filter"
+    }
+  ],
+  "search_quality": [
+    {
+      "id": "Q01",
+      "scenario": "same URL with tracking params",
+      "expected": "deduplicate"
+    },
+    {
+      "id": "Q02",
+      "scenario": "same title different URL",
+      "expected": "keep_both"
+    },
+    {
+      "id": "Q03",
+      "scenario": "no results",
+      "expected": "insufficient"
+    },
+    {
+      "id": "Q04",
+      "scenario": "one bounded retry",
+      "expected": "max_two_attempts"
+    }
+  ],
+  "citations": [
+    {
+      "id": "C01",
+      "scenario": "valid source ID",
+      "expected": "valid"
+    },
+    {
+      "id": "C02",
+      "scenario": "unknown source ID",
+      "expected": "invalid"
+    },
+    {
+      "id": "C03",
+      "scenario": "semantic claim support",
+      "expected": "manual_review"
+    }
+  ]
+}
