@@ -24,14 +24,22 @@ def plan_search(question: str, proposed_query: str = "", now: datetime | None = 
     freshness_required = bool(FRESH_RE.search(question)) and not bool(
         HISTORICAL_RE.search(question)
     )
-    explicit_years = {int(value) for value in YEAR_RE.findall(question)}
+    explicit_years = sorted({int(value) for value in YEAR_RE.findall(question)})
 
-    if freshness_required and not explicit_years:
-        # Replace a stale year proposed by the router; do not override a year
-        # explicitly requested by the user.
-        query = YEAR_RE.sub(str(now.year), query)
-        if not YEAR_RE.search(query):
-            query = f"{query} {now.year}".strip()
+    if freshness_required:
+        if len(explicit_years) == 1:
+            # The user's one explicit year wins over a stale year hallucinated
+            # by the router (e.g. question says 2026, query says 2024).
+            requested_year = str(explicit_years[0])
+            query = YEAR_RE.sub(requested_year, query)
+            if not YEAR_RE.search(query):
+                query = f"{query} {requested_year}".strip()
+        elif not explicit_years:
+            # No year constraint from the user: use the actual current year.
+            query = YEAR_RE.sub(str(now.year), query)
+            if not YEAR_RE.search(query):
+                query = f"{query} {now.year}".strip()
+        # Multiple explicit years are preserved as a comparison/range.
 
     lowered = question.lower()
     time_range = None
@@ -53,6 +61,9 @@ def plan_search(question: str, proposed_query: str = "", now: datetime | None = 
 
 
 def build_retry_query(query: str, current_year: int) -> str:
-    """Produce a distinct, bounded retry query."""
+    """Produce a distinct retry query, even if the first query already has the suffix."""
+    cleaned = (query or "").strip()
     suffix = f"{current_year} 공식 문서 최신 자료"
-    return query if suffix.lower() in query.lower() else f"{query.strip()} {suffix}"
+    if suffix.lower() not in cleaned.lower():
+        return f"{cleaned} {suffix}".strip()
+    return f"{cleaned} 원문 1차 출처"
