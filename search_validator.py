@@ -1,67 +1,190 @@
 """Deterministic search-result normalization and bounded retry."""
 from __future__ import annotations
-from urllib.parse import urlsplit,urlunsplit,parse_qsl,urlencode
+
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 import re
-from search_planner import plan_search,build_retry_query
-TRACKING={"fbclid","gclid","dclid","mc_cid","mc_eid"}
-OFFICIAL=(".gov",".go.kr",".gov.uk",".gov.au",".edu",".ac.kr","python.org","postgresql.org","openai.com","microsoft.com","docs.")
-NEWS=("reuters.","apnews.","bbc.","yonhapnews.","yna.co.kr","bloomberg.")
-def normalize_url(url:str)->str:
+
+from search_planner import plan_search, build_retry_query
+
+TRACKING_KEYS = {"fbclid", "gclid", "dclid", "mc_cid", "mc_eid"}
+OFFICIAL_DOMAINS = {
+    "python.org", "postgresql.org", "openai.com", "microsoft.com",
+    "python.org", "pypi.org", "github.com",
+}
+NEWS_DOMAINS = {
+    "reuters.com", "apnews.com", "bbc.com", "bbc.co.uk",
+    "yna.co.kr", "bloomberg.com",
+}
+
+
+def _host_matches(host: str, domain: str) -> bool:
+    return host == domain or host.endswith("." + domain)
+
+
+def normalize_url(url: str) -> str:
+    """Remove fragments and common tracking parameters from HTTP(S) URLs."""
     try:
-        p=urlsplit((url or "").strip())
-        if p.scheme not in {"http","https"} or not p.netloc:return ""
-        path=p.path or "/"
-        if path!="/":path=path.rstrip("/")
-        query=[(k,v) for k,v in parse_qsl(p.query,keep_blank_values=True) if not(k.lower().startswith("utm_") or k.lower() in TRACKING)]
-        return urlunsplit((p.scheme.lower(),p.netloc.lower(),path,urlencode(sorted(query)),""))
-    except (TypeError,ValueError):return ""
-def classify_source(url:str)->str:
-    host=(urlsplit(url).hostname or "").lower()
-    if any(x in host for x in OFFICIAL):return "official"
-    if any(x in host for x in NEWS):return "news"
-    if any(x in host for x in ("arxiv.org","acm.org","ieee.org","doi.org","springer.com")):return "academic"
-    if any(x in host for x in ("github.com","gitlab.com","stackoverflow.com")):return "technical_community"
+        parsed = urlsplit((url or "").strip())
+        if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+            return ""
+        host = parsed.hostname.lower()
+        if parsed.port:
+            host = f"{host}:{parsed.port}"
+        path = parsed.path or "/"
+        if path != "/":
+            path = path.rstrip("/")
+        query = [
+            (key, value)
+            for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+            if not (key.lower().startswith("utm_") or key.lower() in TRACKING_KEYS)
+        ]
+        return urlunsplit(
+            (parsed.scheme.lower(), host, path, urlencode(sorted(query)), "")
+        )
+    except (TypeError, ValueError):
+        return ""
+
+
+def classify_source(url: str) -> str:
+    host = (urlsplit(url).hostname or "").lower()
+    if host.endswith(".gov") or host.endswith(".gov.uk") or host.endswith(".go.kr"):
+        return "official"
+    if host.endswith(".edu") or host.endswith(".ac.kr"):
+        return "academic"
+    if any(_host_matches(host, domain) for domain in OFFICIAL_DOMAINS):
+        return "official"
+    if any(_host_matches(host, domain) for domain in NEWS_DOMAINS):
+        return "news"
+    if any(
+        _host_matches(host, domain)
+        for domain in {"arxiv.org", "acm.org", "ieee.org", "doi.org", "springer.com"}
+    ):
+        return "academic"
+    if any(
+        _host_matches(host, domain)
+        for domain in {"gitlab.com", "stackoverflow.com"}
+    ):
+        return "technical_community"
     return "other"
-def _tokens(text:str)->set:
-    return {x.lower() for x in re.findall(r"[A-Za-z0-9가-힣+#.]{2,}",text or "") if x.lower() not in {"현재","최신","최근","알려","찾아","조사","공식","자료"}}
-def relevance_score(query:str,result:dict)->float:
-    q=_tokens(query); d=_tokens(" ".join([result.get("title",""),result.get("content","")]))
-    if not q or not d:return 0.0
-    overlap=len(q&d)/len(q); title=_tokens(result.get("title",""))
-    return min(1.0,overlap+(0.12 if q&title else 0.0))
-def prepare_results(query:str,raw_results:list,max_results:int=8)->list:
-    seen=set(); rows=[]
+
+
+def _tokens(text: str) -> set[str]:
+    stopwords = {"현재", "최신", "최근", "알려", "찾아", "조사", "공식", "자료"}
+    return {
+        token.lower()
+        for token in re.findall(r"[A-Za-z0-9가-힣+#.]{2,}", text or "")
+        if token.lower() not in stopwords
+    }
+
+
+def relevance_score(query: str, result: dict) -> float:
+    """A transparent lexical-overlap heuristic, not semantic relevance."""
+    query_tokens = _tokens(query)
+    document_tokens = _tokens(
+        " ".join([result.get("title", ""), result.get("content", "")])
+    )
+    if not query_tokens or not document_tokens:
+        return 0.0
+    overlap = len(query_tokens & document_tokens) / len(query_tokens)
+    title_tokens = _tokens(result.get("title", ""))
+    return min(1.0, overlap + (0.12 if query_tokens & title_tokens else 0.0))
+
+
+def prepare_results(query: str, raw_results: list, max_results: int = 8) -> list:
+    seen = set()
+    prepared = []
     for item in raw_results or []:
-        if not isinstance(item,dict):continue
-        url=normalize_url(item.get("url",""))
-        if not url or url in seen:continue
-        seen.add(url); row=dict(item); row["url"]=url
-        row["source_type"]=classify_source(url); row["relevance_score"]=round(relevance_score(query,row),3)
-        rows.append(row)
-    rows.sort(key=lambda x:(x["relevance_score"],x["source_type"]=="official",bool(x.get("published"))),reverse=True)
-    for i,row in enumerate(rows[:max_results],1):row["source_id"]=f"S{i}"
-    return rows[:max_results]
-def assess_results(results:list,freshness_required:bool=False)->dict:
-    if not results:return {"sufficient":False,"reason":"검색 결과가 없습니다.","count":0}
-    usable=[r for r in results if r.get("relevance_score",0)>=0.08]
-    dated=[r for r in usable if r.get("published")]
-    official=[r for r in usable if r.get("source_type")=="official"]
-    sufficient=len(usable)>=2
-    reason="관련 결과가 부족합니다." if not sufficient else "관련 검색 결과를 확보했습니다."
+        if not isinstance(item, dict):
+            continue
+        normalized_url = normalize_url(item.get("url", ""))
+        if not normalized_url or normalized_url in seen:
+            continue
+        seen.add(normalized_url)
+        row = dict(item)
+        row["url"] = normalized_url
+        row["source_type"] = classify_source(normalized_url)
+        row["relevance_score"] = round(relevance_score(query, row), 3)
+        prepared.append(row)
+
+    prepared.sort(
+        key=lambda row: (
+            row["relevance_score"],
+            row["source_type"] == "official",
+            bool(row.get("published")),
+        ),
+        reverse=True,
+    )
+    for index, row in enumerate(prepared[:max_results], 1):
+        row["source_id"] = f"S{index}"
+    return prepared[:max_results]
+
+
+def assess_results(results: list, freshness_required: bool = False) -> dict:
+    if not results:
+        return {"sufficient": False, "reason": "검색 결과가 없습니다.", "count": 0}
+
+    usable = [row for row in results if row.get("relevance_score", 0) >= 0.08]
+    dated = [row for row in usable if row.get("published")]
+    official = [row for row in usable if row.get("source_type") == "official"]
+    sufficient = len(usable) >= 2
+    reason = (
+        "관련 검색 결과를 확보했습니다."
+        if sufficient
+        else "관련 결과가 부족합니다."
+    )
     if freshness_required and not dated and not official:
-        sufficient=False;reason="최신성을 확인할 날짜나 공식 출처가 충분하지 않습니다."
-    return {"sufficient":sufficient,"reason":reason,"count":len(results),"usable_count":len(usable),"dated_count":len(dated),"official_count":len(official)}
-def search_with_validation(question:str,proposed_query:str,search_fn,now=None,max_results:int=8)->dict:
-    plan=plan_search(question,proposed_query,now=now)
-    first=search_fn(plan["query"],max_results=max_results,time_range=plan["time_range"])
-    results=prepare_results(plan["query"],first,max_results)
-    assessment=assess_results(results,plan["freshness_required"])
-    attempts=[{"query":plan["query"],"count":len(results),"assessment":assessment}]
+        sufficient = False
+        reason = "최신성을 확인할 날짜나 공식 출처가 충분하지 않습니다."
+
+    return {
+        "sufficient": sufficient,
+        "reason": reason,
+        "count": len(results),
+        "usable_count": len(usable),
+        "dated_count": len(dated),
+        "official_count": len(official),
+    }
+
+
+def search_with_validation(
+    question: str, proposed_query: str, search_fn, now=None, max_results: int = 8
+) -> dict:
+    """Run one initial search and at most one retry."""
+    plan = plan_search(question, proposed_query, now=now)
+    first_results = search_fn(
+        plan["query"], max_results=max_results, time_range=plan["time_range"]
+    )
+    results = prepare_results(plan["query"], first_results, max_results)
+    assessment = assess_results(results, plan["freshness_required"])
+    attempts = [
+        {
+            "query": plan["query"],
+            "count": len(results),
+            "assessment": assessment,
+        }
+    ]
+
     if not assessment["sufficient"]:
-        retry=build_retry_query(plan["query"],plan["current_year"])
-        if retry!=plan["query"]:
-            second=search_fn(retry,max_results=max_results,time_range=plan["time_range"])
-            results=prepare_results(retry,results+second,max_results)
-            assessment=assess_results(results,plan["freshness_required"])
-            attempts.append({"query":retry,"count":len(second),"assessment":assessment})
-    return {"results":results,"plan":plan,"assessment":assessment,"attempts":attempts}
+        retry_query = build_retry_query(plan["query"], plan["current_year"])
+        if retry_query != plan["query"]:
+            second_results = search_fn(
+                retry_query, max_results=max_results, time_range=plan["time_range"]
+            )
+            results = prepare_results(
+                retry_query, results + second_results, max_results
+            )
+            assessment = assess_results(results, plan["freshness_required"])
+            attempts.append(
+                {
+                    "query": retry_query,
+                    "count": len(second_results),
+                    "assessment": assessment,
+                }
+            )
+
+    return {
+        "results": results,
+        "plan": plan,
+        "assessment": assessment,
+        "attempts": attempts,
+    }
