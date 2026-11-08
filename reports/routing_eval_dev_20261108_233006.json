@@ -1,0 +1,303 @@
+{
+  "created_at": "2026-11-08T23:30:06+09:00",
+  "split": "dev",
+  "raw_model_metrics": {
+    "accuracy": 1.0,
+    "correct": 15,
+    "total": 15,
+    "macro_f1": 1.0,
+    "per_route": {
+      "DIRECT": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 5
+      },
+      "SEARCH": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 5
+      },
+      "HYBRID": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 5
+      }
+    }
+  },
+  "final_metrics": {
+    "accuracy": 1.0,
+    "correct": 15,
+    "total": 15,
+    "macro_f1": 1.0,
+    "per_route": {
+      "DIRECT": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 5
+      },
+      "SEARCH": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 5
+      },
+      "HYBRID": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 5
+      }
+    }
+  },
+  "confusion_matrix": {
+    "DIRECT": {
+      "DIRECT": 5,
+      "SEARCH": 0,
+      "HYBRID": 0
+    },
+    "SEARCH": {
+      "DIRECT": 0,
+      "SEARCH": 5,
+      "HYBRID": 0
+    },
+    "HYBRID": {
+      "DIRECT": 0,
+      "SEARCH": 0,
+      "HYBRID": 5
+    }
+  },
+  "override_count": 0,
+  "fallback_count": 0,
+  "errors": [],
+  "cases": [
+    {
+      "id": "DEV-D01",
+      "split": "dev",
+      "expected_route": "DIRECT",
+      "question": "Python에서 리스트와 튜플의 차이를 초보자도 이해하도록 설명해 줘.",
+      "rationale": "변하지 않는 기초 프로그래밍 개념 설명이다.",
+      "route": "DIRECT",
+      "model_route": "DIRECT",
+      "confidence": 0.95,
+      "reason": "Python 리스트와 튜플의 차이는 프로그래밍 기초 개념으로 외부 정보 없이 충분히 설명 가능함",
+      "search_query": "",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 8.86
+    },
+    {
+      "id": "DEV-D02",
+      "split": "dev",
+      "expected_route": "DIRECT",
+      "question": "다음 문장을 자연스럽고 공손한 한국어로 고쳐 줘: '자료 내일까지 보내.'",
+      "rationale": "사용자가 제공한 문장의 재작성 요청이다.",
+      "route": "DIRECT",
+      "model_route": "DIRECT",
+      "confidence": 0.95,
+      "reason": "문장 교정 및 재작성 요청으로 외부 정보나 최신 사실이 필요 없는 언어 처리 작업입니다.",
+      "search_query": "",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 5.25
+    },
+    {
+      "id": "DEV-D03",
+      "split": "dev",
+      "expected_route": "DIRECT",
+      "question": "SQL INNER JOIN과 LEFT JOIN의 차이를 작은 예시 테이블로 설명해 줘.",
+      "rationale": "일반적인 SQL 개념 설명이며 최신 외부 정보가 필요하지 않다.",
+      "route": "DIRECT",
+      "model_route": "DIRECT",
+      "confidence": 0.95,
+      "reason": "SQL JOIN 개념 설명은 프로그래밍 기초 지식으로 외부 검색 없이 일반 지식을 통해 충분히 답변 가능함",
+      "search_query": "",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 5.82
+    },
+    {
+      "id": "DEV-D04",
+      "split": "dev",
+      "expected_route": "DIRECT",
+      "question": "HTTP 요청과 응답이 어떤 순서로 동작하는지 알려 줘.",
+      "rationale": "안정적인 웹 기초 개념 설명이다.",
+      "route": "DIRECT",
+      "model_route": "DIRECT",
+      "confidence": 0.95,
+      "reason": "HTTP 요청/응답 순서는 기초 프로그래밍 개념으로 외부 정보 없이 일반 지식으로 충분히 설명 가능함",
+      "search_query": "",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 5.68
+    },
+    {
+      "id": "DEV-D05",
+      "split": "dev",
+      "expected_route": "DIRECT",
+      "question": "이 문장을 영어로 번역해 줘: '오늘은 데이터베이스 과제를 마무리할 예정이다.'",
+      "rationale": "사용자가 제공한 문장의 번역 요청이다.",
+      "route": "DIRECT",
+      "model_route": "DIRECT",
+      "confidence": 0.98,
+      "reason": "번역 요청으로 제공된 텍스트만 변환하면 되므로 외부 정보 검색 불필요",
+      "search_query": "",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 6.49
+    },
+    {
+      "id": "DEV-S01",
+      "split": "dev",
+      "expected_route": "SEARCH",
+      "question": "오늘 부산의 날씨와 강수 확률을 알려 줘.",
+      "rationale": "오늘의 실시간 기상 정보가 필요하다.",
+      "route": "SEARCH",
+      "model_route": "SEARCH",
+      "confidence": 0.95,
+      "reason": "날씨 정보는 실시간 외부 데이터가 필요하므로 검색 경로를 선택합니다.",
+      "search_query": "부산 오늘 날씨 강수 확률",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 6.07
+    },
+    {
+      "id": "DEV-S02",
+      "split": "dev",
+      "expected_route": "SEARCH",
+      "question": "2026년 11월 현재 원달러 환율은 얼마야?",
+      "rationale": "현재 환율 확인이 핵심이다.",
+      "route": "SEARCH",
+      "model_route": "SEARCH",
+      "confidence": 0.95,
+      "reason": "환율은 실시간으로 변동하는 외부 사실 정보이므로 최신 데이터를 검색해야 정확한 답변을 줄 수 있다.",
+      "search_query": "2026 년 11 월 원달러 환율",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 6.71
+    },
+    {
+      "id": "DEV-S03",
+      "split": "dev",
+      "expected_route": "SEARCH",
+      "question": "Python의 최신 안정 버전과 공식 릴리스 정보를 찾아 줘.",
+      "rationale": "최신 버전과 공식 릴리스 확인이 필요하다.",
+      "route": "SEARCH",
+      "model_route": "SEARCH",
+      "confidence": 0.95,
+      "reason": "Python의 최신 안정 버전과 공식 릴리스 정보는 현재 시점의 사실에 의존하므로 외부 검색이 필요함",
+      "search_query": "Python latest stable version official release information",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 7.85
+    },
+    {
+      "id": "DEV-S04",
+      "split": "dev",
+      "expected_route": "SEARCH",
+      "question": "최근 한국에서 발표된 AI 관련 정부 정책과 공식 자료를 정리해 줘.",
+      "rationale": "최근 정책과 공식 출처 확인이 필요하다.",
+      "route": "SEARCH",
+      "model_route": "SEARCH",
+      "confidence": 0.95,
+      "reason": "최근 발표된 정부 정책과 공식 자료는 현재 시점의 사실 정보를 확인해야 하므로 검색이 필요함",
+      "search_query": "한국 AI 관련 정부 정책 2024 공식 자료",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 10.24
+    },
+    {
+      "id": "DEV-S05",
+      "split": "dev",
+      "expected_route": "SEARCH",
+      "question": "오늘 삼성전자 주가와 최근 5거래일 흐름을 확인해 줘.",
+      "rationale": "현재 주가와 최근 시장 데이터가 필요하다.",
+      "route": "SEARCH",
+      "model_route": "SEARCH",
+      "confidence": 0.95,
+      "reason": "주가 정보는 실시간 외부 데이터에 의존하므로 검색이 필요함",
+      "search_query": "삼성전자 주가 오늘 최근 5거래일 흐름",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 7.72
+    },
+    {
+      "id": "DEV-H01",
+      "split": "dev",
+      "expected_route": "HYBRID",
+      "question": "데이터 엔지니어의 기본 업무와 필요한 기술을 설명하고, 2026년 국내 신입 채용공고에서 실제로 요구하는 기술도 조사해 줘.",
+      "rationale": "직무의 안정적인 개념 설명과 현재 채용시장 조사가 모두 필요하다.",
+      "route": "HYBRID",
+      "model_route": "HYBRID",
+      "confidence": 0.95,
+      "reason": "기본 개념 설명과 함께 최신 채용 시장 정보를 검색해야 하므로 하이브리드 경로가 적합합니다.",
+      "search_query": "2026 년 국내 데이터 엔지니어 채용 기술 요구사항",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 14.83
+    },
+    {
+      "id": "DEV-H02",
+      "split": "dev",
+      "expected_route": "HYBRID",
+      "question": "RAG의 구조와 작동 원리를 먼저 설명한 다음, 최근 기업들이 실제로 도입하는 사례와 흐름을 조사해 줘.",
+      "rationale": "기본 아키텍처 설명과 최근 도입 동향이 함께 필요하다.",
+      "route": "HYBRID",
+      "model_route": "HYBRID",
+      "confidence": 0.95,
+      "reason": "개념 설명과 최신 시장 도입 사례 조사가 모두 필요하므로 하이브리드 경로가 적합합니다.",
+      "search_query": "RAG 도입 사례 기업 현황 최신 트렌드",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 31.34
+    },
+    {
+      "id": "DEV-H03",
+      "split": "dev",
+      "expected_route": "HYBRID",
+      "question": "SQL 데이터베이스와 NoSQL 데이터베이스의 차이를 설명하고, 현재 기업들의 활용 추세도 비교해 줘.",
+      "rationale": "안정적인 개념 비교와 현재 활용 추세 조사가 모두 필요하다.",
+      "route": "HYBRID",
+      "model_route": "HYBRID",
+      "confidence": 0.95,
+      "reason": "SQL과 NoSQL의 개념적 차이는 직접 설명 가능하나, 현재 기업 활용 추세는 최신 시장 정보를 확인해야 하므로 두 가지 접근이 모두 필요함",
+      "search_query": "SQL vs NoSQL database comparison 2024 enterprise usage trends adoption statistics",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 9.35
+    },
+    {
+      "id": "DEV-H04",
+      "split": "dev",
+      "expected_route": "HYBRID",
+      "question": "컨테이너 오케스트레이션의 개념을 설명하고, 최신 Kubernetes 릴리스에서 달라진 주요 기능도 정리해 줘.",
+      "rationale": "기본 개념 설명과 최신 릴리스 확인이 함께 필요하다.",
+      "route": "HYBRID",
+      "model_route": "HYBRID",
+      "confidence": 0.95,
+      "reason": "컨테이너 오케스트레이션 기본 개념은 일반 지식이나 최신 릴리스 기능 정보는 현재 시점의 외부 정보를 확인해야 하므로 하이브리드 경로가 적합함.",
+      "search_query": "Kubernetes latest release major features changes",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 35.62
+    },
+    {
+      "id": "DEV-H05",
+      "split": "dev",
+      "expected_route": "HYBRID",
+      "question": "REST API의 설계 원칙을 설명하고, 현재 FastAPI와 Flask의 공식 지원 버전 및 최근 변경점도 비교해 줘.",
+      "rationale": "기본 설계 원칙과 현재 프레임워크 정보를 함께 확인해야 한다.",
+      "route": "HYBRID",
+      "model_route": "HYBRID",
+      "confidence": 0.95,
+      "reason": "REST API 설계 원칙은 일반 지식으로 설명 가능하나 FastAPI와 Flask의 공식 지원 버전 및 최근 변경점은 현재 시점의 외부 정보를 확인해야 하므로 개념 설명과 최신 정보 조사가 모두 필요함",
+      "search_query": "FastAPI Flask official supported versions 2024 recent changes",
+      "overridden": false,
+      "fallback": false,
+      "elapsed_seconds": 7.46
+    }
+  ]
+}
