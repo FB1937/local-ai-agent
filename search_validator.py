@@ -8,8 +8,7 @@ from search_planner import plan_search, build_retry_query
 
 TRACKING_KEYS = {"fbclid", "gclid", "dclid", "mc_cid", "mc_eid"}
 OFFICIAL_DOMAINS = {
-    "python.org", "postgresql.org", "openai.com", "microsoft.com",
-    "python.org", "pypi.org", "github.com",
+    "python.org", "postgresql.org", "openai.com", "microsoft.com", "pypi.org",
 }
 NEWS_DOMAINS = {
     "reuters.com", "apnews.com", "bbc.com", "bbc.co.uk",
@@ -22,14 +21,16 @@ def _host_matches(host: str, domain: str) -> bool:
 
 
 def normalize_url(url: str) -> str:
-    """Remove fragments and common tracking parameters from HTTP(S) URLs."""
+    """Remove fragments, default ports, and common tracking parameters."""
     try:
         parsed = urlsplit((url or "").strip())
-        if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        scheme = parsed.scheme.lower()
+        if scheme not in {"http", "https"} or not parsed.hostname:
             return ""
         host = parsed.hostname.lower()
-        if parsed.port:
-            host = f"{host}:{parsed.port}"
+        port = parsed.port
+        if port and not ((scheme == "http" and port == 80) or (scheme == "https" and port == 443)):
+            host = f"{host}:{port}"
         path = parsed.path or "/"
         if path != "/":
             path = path.rstrip("/")
@@ -38,9 +39,7 @@ def normalize_url(url: str) -> str:
             for key, value in parse_qsl(parsed.query, keep_blank_values=True)
             if not (key.lower().startswith("utm_") or key.lower() in TRACKING_KEYS)
         ]
-        return urlunsplit(
-            (parsed.scheme.lower(), host, path, urlencode(sorted(query)), "")
-        )
+        return urlunsplit((scheme, host, path, urlencode(sorted(query)), ""))
     except (TypeError, ValueError):
         return ""
 
@@ -62,7 +61,7 @@ def classify_source(url: str) -> str:
         return "academic"
     if any(
         _host_matches(host, domain)
-        for domain in {"gitlab.com", "stackoverflow.com"}
+        for domain in {"github.com", "gitlab.com", "stackoverflow.com"}
     ):
         return "technical_community"
     return "other"
@@ -146,13 +145,20 @@ def assess_results(results: list, freshness_required: bool = False) -> dict:
     }
 
 
+def _call_search(search_fn, query: str, max_results: int, time_range: str | None):
+    try:
+        return search_fn(query, max_results=max_results, time_range=time_range), None
+    except Exception as exc:  # keep the interactive agent alive on provider failures
+        return [], f"{type(exc).__name__}: {exc}"
+
+
 def search_with_validation(
     question: str, proposed_query: str, search_fn, now=None, max_results: int = 8
 ) -> dict:
     """Run one initial search and at most one retry."""
     plan = plan_search(question, proposed_query, now=now)
-    first_results = search_fn(
-        plan["query"], max_results=max_results, time_range=plan["time_range"]
+    first_results, first_error = _call_search(
+        search_fn, plan["query"], max_results, plan["time_range"]
     )
     results = prepare_results(plan["query"], first_results, max_results)
     assessment = assess_results(results, plan["freshness_required"])
@@ -161,14 +167,15 @@ def search_with_validation(
             "query": plan["query"],
             "count": len(results),
             "assessment": assessment,
+            "error": first_error,
         }
     ]
 
     if not assessment["sufficient"]:
         retry_query = build_retry_query(plan["query"], plan["current_year"])
         if retry_query != plan["query"]:
-            second_results = search_fn(
-                retry_query, max_results=max_results, time_range=plan["time_range"]
+            second_results, second_error = _call_search(
+                search_fn, retry_query, max_results, plan["time_range"]
             )
             results = prepare_results(
                 retry_query, results + second_results, max_results
@@ -179,6 +186,7 @@ def search_with_validation(
                     "query": retry_query,
                     "count": len(second_results),
                     "assessment": assessment,
+                    "error": second_error,
                 }
             )
 
