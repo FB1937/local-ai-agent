@@ -30,6 +30,7 @@ def _format_search_context(search_results):
             f"URL: {result.get('url', '')}\n"
             f"출처 유형: {result.get('source_type', 'unknown')}\n"
             f"게시일: {result.get('published') or '확인되지 않음'}\n"
+            f"공식 릴리스 목록 후보: {'예' if result.get('official_release_index') else '아니오'}\\n"
             f"검색 요약: {result.get('content', '')}"
         )
     return "\n\n".join(blocks)
@@ -42,6 +43,9 @@ def _build_prompts(question, context, route, search_assessment):
 검색 결과에 없는 사실을 검색으로 확인한 것처럼 말하지 않는다.
 검색 자료의 [S숫자] ID만 인용한다. 존재하지 않는 출처 ID를 만들지 않는다.
 게시일이 확인되지 않은 자료를 최신 자료라고 단정하지 않는다.
+출처 유형은 도메인 기반의 참고용 분류이며, 그 자체가 내용의 진실성을 보장하지 않는다.
+공식 개별 릴리스 페이지와 최신 릴리스 목록 페이지를 구분한다.
+서로 다른 버전·날짜·수치가 발견되면 충돌을 숨기거나 임의로 하나를 선택하지 않는다.
 """.strip()
 
     if route == "DIRECT":
@@ -63,8 +67,11 @@ def _build_prompts(question, context, route, search_assessment):
 3. 종합 분석: 사실과 해석을 구분
 4. 확인되지 않은 사항: 검색 자료로 검증할 수 없었던 내용 명시
 
-기업 도입 사례는 기업명뿐 아니라 적용 업무나 제품까지 자료에서 확인될 때만 주장한다.
+기업 도입 사례는 기업 공식 사이트(company_official) 자료에서 기업명과 적용 업무·제품이 확인될 때만 '확인된 사례'로 주장한다.
+블로그·커뮤니티의 기업 관련 언급은 공식 도입 사례의 증거로 승격하지 말고 '추가 확인이 필요한 언급'으로 구분한다.
+검색 평가에서 company_official_count가 0이면 특정 기업의 도입 사례가 확인됐다고 쓰지 않는다.
 수치, 가격, 날짜에는 해당 근거를 인용한다.
+검색 평가의 sufficient가 false이면 먼저 근거 부족 사유를 설명하고, 확정적 결론 대신 확인된 범위와 미확인 범위를 구분한다.
 """.strip()
         user_prompt = f"""
 질문:
@@ -83,6 +90,9 @@ def _build_prompts(question, context, route, search_assessment):
 너는 웹 검색 근거 중심 AI다.
 {common_rules}
 중요한 최신 사실, 수치, 날짜, 가격은 근거가 있을 때만 말하고 해당 [S1] 형식 ID를 인용한다.
+requires_official이 true이면 공식 출처가 뒷받침하는 범위에서만 결론을 낸다.
+최신 버전 질문에서는 개별 버전의 릴리스 페이지를 최신 버전 목록으로 오인하지 않는다. 공식 다운로드·릴리스 목록 페이지를 우선한다.
+version_conflict가 true이면 충돌을 명시하고 공식 목록이 명확히 해소하지 못한 경우 최신 버전을 단정하지 않는다.
 근거가 부족하면 확인할 수 없다고 답한다.
 검색 결과가 없으면 출처나 최신 사실을 만들어내지 않는다.
 """.strip()
