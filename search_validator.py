@@ -131,12 +131,32 @@ def _version_key(value: str) -> tuple:
 
 
 def _latest_claims(row: dict) -> list[str]:
+    """Extract only the version nearest an explicit latest-stable phrase on an official index."""
     if not row.get("official_release_index"):
         return []
     text = " ".join([row.get("title", ""), row.get("content", "")])
-    if not LATEST_STABLE_RE.search(text):
-        return []
-    return _stable_version_mentions(text)
+    claims = []
+    # Split independent snippets/sentences so a maintenance release mentioned
+    # nearby is not mistaken for the latest release.
+    for segment in re.split(r"[;\\n]+|(?<=[.!?])\\s+", text):
+        marker = LATEST_STABLE_RE.search(segment)
+        if not marker:
+            continue
+        matches = list(VERSION_RE.finditer(segment))
+        candidates = []
+        for match in matches:
+            start, end = match.span()
+            context = segment[max(0, start - 28):min(len(segment), end + 28)]
+            suffix = segment[end:end + 5].lower()
+            if re.match(r"(?:a|b|rc|dev)\\d*", suffix) or PRERELEASE_NEAR_RE.search(context):
+                continue
+            distance = 0 if marker.start() <= end and marker.end() >= start else min(
+                abs(marker.start() - end), abs(start - marker.end())
+            )
+            candidates.append((distance, match.group(1)))
+        if candidates:
+            claims.append(min(candidates, key=lambda item: item[0])[1])
+    return sorted(set(claims), key=_version_key)
 
 
 def _tokens(text: str) -> set[str]:
