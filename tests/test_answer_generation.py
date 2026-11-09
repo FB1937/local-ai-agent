@@ -30,6 +30,22 @@ def ollama_body(content, done=True, done_reason="stop", eval_count=12, thinking=
 
 class AnswerGenerationStabilityTests(unittest.TestCase):
     @patch("llm.requests.post")
+    def test_direct_first_attempt_disables_thinking(self, post):
+        post.return_value = FakeResponse(ollama_body("간단한 설명"))
+        result = generate_answer_result("개념을 설명해 줘", route="DIRECT")
+        self.assertTrue(result["ok"])
+        payload = post.call_args.kwargs["json"]
+        self.assertIs(payload["think"], False)
+
+    @patch("llm.requests.post")
+    def test_hybrid_first_attempt_keeps_model_default_thinking(self, post):
+        post.return_value = FakeResponse(ollama_body("검색 근거를 바탕으로 설명"))
+        result = generate_answer_result("개념과 최신 사례", route="HYBRID")
+        self.assertTrue(result["ok"])
+        payload = post.call_args.kwargs["json"]
+        self.assertNotIn("think", payload)
+
+    @patch("llm.requests.post")
     def test_empty_first_response_is_retried_and_recovers(self, post):
         post.side_effect = [
             FakeResponse(ollama_body("")),
