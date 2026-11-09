@@ -122,9 +122,11 @@ class SearchQualityTests(unittest.TestCase):
             {"url": "https://en.wikipedia.org/wiki/Python", "title": "Python 3.15.2 latest", "content": "Python 3.15.2 latest version"},
         ], now=self.now)
         result = assess_results(rows, requires_official=True, version_query=True)
-        self.assertTrue(result["version_conflict"])
+        self.assertFalse(result["version_conflict"])
+        self.assertTrue(result["unresolved_version_conflict"])
         self.assertFalse(result["sufficient"])
         self.assertEqual(result["version_mentions"], ["3.15.0", "3.15.2"])
+        self.assertEqual(result["latest_stable_claims"], [])
 
     def test_official_release_index_can_resolve_version_source_requirement(self):
         rows = prepare_results("Python latest stable version", [
@@ -134,6 +136,65 @@ class SearchQualityTests(unittest.TestCase):
         result = assess_results(rows, requires_official=True, version_query=True)
         self.assertTrue(result["sufficient"])
         self.assertGreaterEqual(result["official_release_index_count"], 1)
+
+
+    def test_different_maintenance_branches_are_not_latest_conflicts(self):
+        rows = prepare_results("Python latest stable version", [
+            {"url": "https://www.python.org/downloads/", "title": "Python downloads",
+             "content": "Python 3.15.2 latest stable release; Python 3.14.10 maintenance release; Python 3.13.18 maintenance release"},
+            {"url": "https://www.python.org/downloads/release/python-31410/", "title": "Python 3.14.10",
+             "content": "Python 3.14.10 release"},
+        ], now=self.now)
+        result = assess_results(rows, requires_official=True, version_query=True)
+        self.assertFalse(result["version_conflict"])
+        self.assertFalse(result["unresolved_version_conflict"])
+        self.assertEqual(result["latest_stable_claims"], ["3.15.2"])
+
+    def test_prerelease_is_excluded_from_latest_stable_claim(self):
+        rows = prepare_results("Python latest stable version", [
+            {"url": "https://www.python.org/downloads/", "title": "Python downloads",
+             "content": "Python 3.15.2 latest stable release. Python 3.16 pre-release planned."},
+            {"url": "https://www.python.org/downloads/release/python-3152/", "title": "Python 3.15.2",
+             "content": "Python 3.15.2 release"},
+        ], now=self.now)
+        result = assess_results(rows, requires_official=True, version_query=True)
+        self.assertEqual(result["latest_stable_claims"], ["3.15.2"])
+        self.assertFalse(result["unresolved_version_conflict"])
+
+    def test_conflicting_explicit_latest_claims_are_flagged(self):
+        rows = prepare_results("Python latest stable version", [
+            {"url": "https://www.python.org/downloads/", "title": "Python downloads",
+             "content": "Python 3.15.2 latest stable release"},
+            {"url": "https://www.python.org/downloads/source/", "title": "Python source downloads",
+             "content": "Python 3.15.1 latest stable release"},
+        ], now=self.now)
+        result = assess_results(rows, requires_official=True, version_query=True)
+        self.assertTrue(result["version_conflict"])
+        self.assertTrue(result["unresolved_version_conflict"])
+        self.assertEqual(result["latest_stable_claims"], ["3.15.1", "3.15.2"])
+
+    def test_vendor_general_use_case_is_not_customer_deployment_case(self):
+        rows = prepare_results("RAG 기업 활용 사례", [
+            {"url": "https://www.ibm.com/think/news/ai-detectives-agentic-rag",
+             "title": "AI detectives: Agentic RAG",
+             "content": "Agentic RAG can support customer service applications and business process automation."},
+            {"url": "https://blog.example/rag", "title": "RAG overview",
+             "content": "General RAG applications."},
+        ], now=self.now)
+        result = assess_results(rows, requires_company_official=True)
+        self.assertEqual(result["company_official_count"], 1)
+        self.assertEqual(result["company_case_signal_count"], 0)
+
+    def test_named_customer_story_is_flagged_as_case_signal(self):
+        rows = prepare_results("RAG enterprise customer case study", [
+            {"url": "https://www.ibm.com/case-studies/acme",
+             "title": "Customer story: ACME deploys RAG",
+             "content": "ACME implemented the RAG system for its customer support team."},
+            {"url": "https://blog.example/rag", "title": "RAG overview",
+             "content": "General RAG applications."},
+        ], now=self.now)
+        result = assess_results(rows, requires_company_official=True)
+        self.assertEqual(result["company_case_signal_count"], 1)
 
     def test_official_source_ranks_above_blog_when_relevance_is_equal(self):
         rows = prepare_results("RAG enterprise", [
