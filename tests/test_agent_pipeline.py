@@ -8,6 +8,7 @@ from planner import create_plan
 from executor import execute_plan
 from response_generator import generate_response
 from agent import LocalAIAgent
+from router import classify_question
 
 
 class InputAndContextTests(unittest.TestCase):
@@ -39,6 +40,26 @@ class InputAndContextTests(unittest.TestCase):
 
 
 class TaskAndPlanningTests(unittest.TestCase):
+    def test_router_safety_uses_current_turn_not_old_context(self):
+        contextual = (
+            "[이전 대화 문맥]\n사용자: 현재 Python 최신 버전을 찾아줘.\n"
+            "에이전트: 검색 결과를 확인했습니다.\n\n"
+            "[현재 질문]\n튜플 안에 리스트가 있으면 어떻게 돼?"
+        )
+        model_decision = {
+            "route": "DIRECT",
+            "reason": "기초 Python 개념",
+            "search_query": "",
+            "confidence": 0.99,
+        }
+        with patch("router._call_router_model", return_value=model_decision):
+            result = classify_question(
+                contextual,
+                current_question="튜플 안에 리스트가 있으면 어떻게 돼?",
+            )
+        self.assertEqual(result["route"], "DIRECT")
+        self.assertFalse(result["overridden"])
+
     def test_classifier_extracts_intent_domain_and_freshness(self):
         result = classify_task("2026년 최신 데이터 엔지니어 채용 동향을 조사해 줘.")
         self.assertEqual(result["intent"], "information_seeking")
