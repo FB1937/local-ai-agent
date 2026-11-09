@@ -51,7 +51,10 @@ def main():
         print("\n[④ Planning & Routing]")
         print(f"선택 경로: {decision['route']}")
         print(f"판단 이유: {decision.get('reason', '')}")
-        print(f"분류 확신도(모델 자체 평가): {decision.get('confidence', 0):.2f}")
+        if decision.get("fast_path"):
+            print("분류 방식: 규칙 기반 빠른 경로 (확률 점수가 아닙니다)")
+        else:
+            print(f"분류 확신도(모델 자체 평가): {decision.get('confidence', 0):.2f}")
         if decision.get("fallback"):
             print("[안내] 라우터 오류로 안전 검색 경로를 사용합니다.")
         elif decision.get("overridden"):
