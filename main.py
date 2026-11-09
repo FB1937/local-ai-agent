@@ -59,12 +59,13 @@ def main():
                 f"관련 결과 {assessment.get('usable_count', 0)}개 / "
                 f"공식 출처 {assessment.get('official_count', 0)}개 / "
                 f"기업 공식 출처 {assessment.get('company_official_count', 0)}개 / "
+                f"고객 사례 후보 {assessment.get('company_case_signal_count', 0)}개 / "
                 f"날짜 확인 {assessment.get('dated_count', 0)}개"
             )
             if assessment.get("version_conflict"):
                 print(
                     "[주의] 검색 결과에 상충하는 버전 표기가 있습니다: "
-                    + ", ".join(assessment.get("version_mentions", []))
+                    + ", ".join(assessment.get("latest_stable_claims", []))
                 )
             if not assessment["sufficient"]:
                 print("[주의] 검색 근거가 충분하지 않습니다: " + assessment.get("reason", "사유 미상"))
