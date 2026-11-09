@@ -30,7 +30,7 @@ def _format_search_context(search_results):
             f"URL: {result.get('url', '')}\n"
             f"출처 유형: {result.get('source_type', 'unknown')}\n"
             f"게시일: {result.get('published') or '확인되지 않음'}\n"
-            f"공식 릴리스 목록 후보: {'예' if result.get('official_release_index') else '아니오'}\\n"
+            f"공식 릴리스 목록 후보: {'예' if result.get('official_release_index') else '아니오'}\n"
             f"검색 요약: {result.get('content', '')}"
         )
     return "\n\n".join(blocks)
