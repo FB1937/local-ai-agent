@@ -119,6 +119,23 @@ class TaskAndPlanningTests(unittest.TestCase):
         self.assertEqual(assessment["latest_stable_claims"], ["3.15.2"])
         self.assertFalse(assessment["unresolved_version_conflict"])
 
+    def test_canonical_release_index_is_authoritative_with_low_snippet_overlap(self):
+        rows = prepare_results(
+            "unrelated query words",
+            [{
+                "title": "Python Release Python 3.15.2",
+                "url": "https://www.python.org/downloads/latest",
+                "content": "Python 3.15.2",
+                "source_type": "official",
+            }],
+        )
+        assessment = assess_results(
+            rows, freshness_required=True, requires_official=True, version_query=True
+        )
+        self.assertEqual(assessment["latest_stable_claims"], ["3.15.2"])
+        self.assertEqual(assessment["official_release_index_count"], 1)
+        self.assertTrue(assessment["sufficient"])
+
     def test_generic_company_implementation_article_is_not_customer_case_signal(self):
         rows = prepare_results(
             "RAG enterprise customer deployment case study",
