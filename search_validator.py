@@ -291,7 +291,9 @@ def assess_results(results: list, freshness_required: bool = False,
         not latest_claims or len(latest_claims) > 1
     )
 
-    sufficient = len(usable) >= 2
+    sufficient = len(usable) >= 2 or (
+        version_query and len(latest_claims) == 1 and len(release_indexes) >= 1
+    )
     reasons = []
     if not sufficient:
         reasons.append("질문과 관련된 결과가 2개 미만입니다.")
