@@ -62,6 +62,25 @@ class TaskAndPlanningTests(unittest.TestCase):
         self.assertEqual(result["route"], "DIRECT")
         self.assertFalse(result["overridden"])
 
+    def test_simple_conceptual_question_uses_fast_direct_without_router_llm(self):
+        with patch("router._call_router_model") as router_model:
+            result = classify_question("Python 리스트와 튜플의 차이를 설명해 줘.")
+        router_model.assert_not_called()
+        self.assertEqual(result["route"], "DIRECT")
+        self.assertTrue(result["fast_path"])
+        self.assertEqual(result["model_route"], "RULE_DIRECT")
+
+    def test_follow_up_conceptual_question_uses_fast_direct(self):
+        with patch("router._call_router_model") as router_model:
+            result = classify_question(
+                "[이전 대화 문맥]\\n사용자: Python 리스트와 튜플의 차이\\n"
+                "[현재 질문]\\n그럼 튜플 안에 리스트가 있으면 어떻게 돼?",
+                current_question="그럼 튜플 안에 리스트가 있으면 어떻게 돼?",
+            )
+        router_model.assert_not_called()
+        self.assertEqual(result["route"], "DIRECT")
+        self.assertTrue(result["fast_path"])
+
     def test_classifier_extracts_intent_domain_and_freshness(self):
         result = classify_task("2026년 최신 데이터 엔지니어 채용 동향을 조사해 줘.")
         self.assertEqual(result["intent"], "information_seeking")
