@@ -1,9 +1,10 @@
 """Local AI Agent v1.2 entry point."""
 from time import perf_counter
+
 from router import classify_question
 from search import search_web
 from search_validator import search_with_validation
-from llm import generate_answer
+from llm import generate_answer_result
 from answer_validator import validate_answer, append_validation_notice
 
 
@@ -60,15 +61,28 @@ def main():
 
         print("\n[3] Qwen 답변 생성 중...")
         started = perf_counter()
-        answer = generate_answer(question, results, route=route, search_assessment=assessment)
+        generation = generate_answer_result(
+            question, results, route=route, search_assessment=assessment
+        )
         timings["answer_generation"] = perf_counter() - started
-        validation = validate_answer(answer, results)
-        answer = append_validation_notice(answer, validation)
+        answer = generation.get("answer") or ""
+        validation = validate_answer(
+            answer, results, generation_ok=generation.get("ok", False)
+        )
+        display_answer = append_validation_notice(answer, validation)
+        if not answer:
+            display_answer = (
+                "[답변 생성 실패] "
+                + (generation.get("error") or "모델이 빈 답변을 반환했습니다.")
+                + "\n검색 결과와 라우팅 로그는 위 내용을 참고하세요."
+            )
+        elif generation.get("error"):
+            display_answer += "\n\n[생성 상태] " + generation["error"]
 
         print("\n" + "=" * 56)
         print("AI 답변")
         print("=" * 56)
-        print(answer)
+        print(display_answer)
         if results:
             print("\n[참고 자료]")
             for result in results:
@@ -80,7 +94,18 @@ def main():
         print("\n[실행 시간]")
         for name, seconds in timings.items():
             print(f"- {name}: {seconds:.2f}초")
-        print(f"- 인용 구조 검사: {'통과' if validation['valid'] else '경고'}")
+        print(f"- 생성 재시도: {generation.get('retry_count', 0)}회")
+        if generation.get("done_reason"):
+            print(f"- Ollama 종료 사유: {generation['done_reason']}")
+        if generation.get("eval_count") is not None:
+            print(f"- 출력 토큰: {generation['eval_count']}")
+        eval_seconds = generation.get("eval_duration_seconds")
+        eval_count = generation.get("eval_count")
+        if eval_seconds and eval_count:
+            print(f"- 생성 속도: {eval_count / eval_seconds:.2f} tokens/s")
+        if generation.get("error"):
+            print(f"- 생성 상태 경고: {generation['error']}")
+        print(f"- 인용/응답 구조 검사: {'통과' if validation['valid'] else '경고'}")
         print("- 의미적 근거 검증: 미수행 (검색 요약 기반)")
 
 
