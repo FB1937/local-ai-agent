@@ -203,16 +203,20 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
             "done_reason": current["done_reason"],
             "num_predict": num_predict,
         })
-        if best is None or len(current["answer"]) > len(best["answer"]):
-            best = current
-
         is_empty = not current["answer"]
         hit_length_limit = str(current.get("done_reason") or "").lower() in {
             "length", "max_tokens", "limit"
         }
         explicitly_incomplete = current.get("done") is False
-        if not (is_empty or hit_length_limit or explicitly_incomplete):
+        needs_retry = is_empty or hit_length_limit or explicitly_incomplete
+
+        if not needs_retry:
+            # Prefer a complete second response even if it is shorter than a
+            # truncated first response.
+            best = current
             break
+        if best is None or len(current["answer"]) > len(best["answer"]):
+            best = current
         if attempt_number < retry_limit:
             user_prompt += (
                 "\n\n이전 생성이 비어 있거나 출력 제한에 도달했다. "
