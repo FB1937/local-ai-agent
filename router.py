@@ -213,12 +213,18 @@ def apply_safety_rules(question: str, decision: dict[str, Any]) -> dict[str, Any
     return result
 
 
-def classify_question(question: str) -> dict[str, Any]:
-    """Classify a question and return a safe, executable routing decision."""
+def classify_question(question: str, current_question: str | None = None) -> dict[str, Any]:
+    """Classify contextual wording while applying safety rules to the current turn.
+
+    The first argument may contain resolved conversational context for pronouns.
+    The optional current_question is the latest user turn and is the only text
+    used to detect explicit search/freshness requirements.
+    """
     if not isinstance(question, str) or not question.strip():
         raise ValueError("분류할 질문이 비어 있습니다.")
 
     cleaned_question = question.strip()
+    safety_question = (current_question or cleaned_question).strip()
 
     try:
         model_data = _call_router_model(cleaned_question)
@@ -237,4 +243,4 @@ def classify_question(question: str) -> dict[str, Any]:
         }
         return decision
 
-    return apply_safety_rules(cleaned_question, decision)
+    return apply_safety_rules(safety_question, decision)
