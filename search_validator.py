@@ -43,9 +43,12 @@ LATEST_STABLE_RE = re.compile(
     re.I,
 )
 CUSTOMER_CASE_RE = re.compile(
-    r"(customer\s+(?:success\s+)?story|customer\s+case\s+study|case\s+study|"
-    r"named\s+customer|고객\s*사례|고객사\s*(?:도입|적용|구축)|"
-    r"도입\s*사례|구축\s*사례|적용\s*사례|implemented\s+at|deployed\s+at)",
+    r"(customer\s+(?:success\s+)?story|named\s+customer|"
+    r"implemented\s+at|deployed\s+at|"
+    r"고객사\s*[:：]?\s*[가-힣A-Za-z0-9㈜()._-]{2,}\s*"
+    r"(?:도입|적용|구축)|"
+    r"[가-힣A-Za-z0-9㈜()._-]{2,}\s*(?:고객사|고객 기업)\s*"
+    r"(?:도입|적용|구축))",
     re.I,
 )
 
@@ -103,7 +106,7 @@ def is_official_release_index(result: dict) -> bool:
     path = (urlsplit(url).path or "/").lower().rstrip("/") or "/"
     if not any(_host_matches(host, domain) for domain in OFFICIAL_DOMAINS):
         return False
-    exact_index_paths = {"/downloads", "/download/releases", "/doc/versions", "/releases"}
+    exact_index_paths = {"/downloads", "/downloads/latest", "/download/releases", "/doc/versions", "/releases"}
     index_subtrees = {"/downloads/source", "/downloads/windows"}
     return (
         path in exact_index_paths
@@ -137,6 +140,14 @@ def _latest_claims(row: dict) -> list[str]:
         return []
     text = " ".join([row.get("title", ""), row.get("content", "")])
     claims = []
+    path = (urlsplit(row.get("url", "")).path or "").lower().rstrip("/")
+    # python.org/downloads/latest is a canonical official endpoint that resolves
+    # directly to the current latest release page. Its version can be extracted
+    # from the page title even when the search snippet omits the phrase "latest".
+    if path == "/downloads/latest":
+        versions = _stable_version_mentions(text)
+        if versions:
+            return [max(versions, key=_version_key)]
     # Split independent snippets/sentences so a maintenance release mentioned
     # nearby is not mistaken for the latest release.
     for segment in re.split(r"[;\n]+|(?<=[.!?])\s+", text):
