@@ -75,7 +75,12 @@ def _build_prompts(question, context, route, search_assessment):
 검색 평가에서 company_case_signal_count가 0이면 확인된 고객 도입 사례가 없다고 명시한다.
 company_official_count는 기업 도메인 자료의 수일 뿐, 도입 증거의 수가 아니다.
 수치, 가격, 날짜에는 해당 근거를 인용한다.
-검색 평가의 sufficient가 false이면 먼저 근거 부족 사유를 설명하고, 확정적 결론 대신 확인된 범위와 미확인 범위를 구분한다.
+검색 평가의 sufficient가 false이면 검색 결과 수만으로 충분한 근거가 있다고 간주하지 않는다. 근거 부족 사유를 먼저 설명하고 확인된 범위와 미확인 범위를 구분한다.
+sufficient가 false이면 최신 동향·시장 표준·기업 전반의 도입 수준을 단정하지 않는다.
+company_case_signal_count가 0이면 실제 고객 도입 사례가 검색으로 확인되지 않았다고 명시한다.
+company_official_count가 0이면 기업 공식 출처가 확보되지 않았다고 명시한다.
+고객 사례 신호가 0인 상태에서 "기업들이 도입하고 있다", "프로덕션의 기본이다", "업계 표준이 되었다", "선호된다"와 같은 업계 전반의 사실 주장을 만들지 않는다.
+일반적인 활용 분야는 기술적으로 가능한 활용 시나리오로 표현하고 실제 도입 사실과 분리한다.
 검색 평가의 company_case_signal_count가 0이면 IBM 등 공급사 공식 기술 소개를 실제 고객 도입 사례로 분류하지 않는다.
 """.strip()
         user_prompt = f"""
