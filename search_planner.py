@@ -49,7 +49,7 @@ def plan_search(question: str, proposed_query: str = "", now: datetime | None = 
         time_range = "week"
 
     if requires_company_official:
-        retry_query = f'{query} "실제 고객사" "도입" "구축" "운영" "고객 사례" "customer story" "deployed at"
+        retry_query = f"{query} 실제 고객사 도입 구축 운영 고객 사례 customer story deployed at"
     elif requires_official:
         retry_query = f"{query} 공식 릴리스 목록 official release"
     else:
