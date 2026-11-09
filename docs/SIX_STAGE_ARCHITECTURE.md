@@ -39,7 +39,7 @@ Raw input
 ## Important implementation boundaries
 
 - Tokenization is performed by the configured Ollama model/tokenizer. Stage 1 currently normalizes and validates text; it does not implement a separate tokenizer.
-- Stage 2 context is in-memory only, bounded by turn count and character count, and disappears when the process exits. No persistent user profile or long-term memory is implemented.
+- Stage 2 context is in-memory only, bounded by turn count and character count, and disappears when the process exits. Obvious follow-up phrases (for example, “그 버전은?”) cause recent turns to be attached before task classification and routing. No persistent user profile or long-term memory is implemented.
 - Stage 3 is deterministic rule-based classification. Its labels are hints, not a calibrated prediction or a substitute for the LLM router.
 - Stage 4 keeps the existing DIRECT / SEARCH / HYBRID router. Search planning remains a separate deterministic helper.
 - Stage 5 currently registers only SearXNG search. Arbitrary shell commands, database writes, file mutations, and external side effects are not enabled.
