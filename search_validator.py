@@ -273,12 +273,15 @@ def assess_results(results: list, freshness_required: bool = False,
     official = [row for row in usable if row.get("source_type") == "official"]
     company_official = [row for row in usable if row.get("source_type") == "company_official"]
     company_case_signals = [row for row in company_official if row.get("company_case_signal")]
-    release_indexes = [row for row in usable if row.get("official_release_index")]
+    # An official canonical release index (for example python.org/downloads/latest)
+    # is authoritative by URL/title semantics even when a short search snippet has
+    # little lexical overlap with the query. Keep ordinary results relevance-gated.
+    release_indexes = [row for row in results if row.get("official_release_index")]
     versions = sorted({
         version for row in usable for version in row.get("version_mentions", [])
     }, key=_version_key)
     latest_claims = sorted({
-        version for row in usable for version in row.get("latest_stable_claims", [])
+        version for row in release_indexes for version in row.get("latest_stable_claims", [])
     }, key=_version_key)
     # Different patch/minor versions in ordinary snippets are not, by themselves,
     # contradictory latest-version claims. Compare only explicit claims from
