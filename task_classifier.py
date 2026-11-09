@@ -81,7 +81,7 @@ def classify_task(question: str) -> dict:
         task_types.append("analysis")
 
     tool_candidates = []
-    explicit_retrieval = bool(re.search(r"(찾아|검색|조사|자료를\\s*확인)", text, re.I))
+    explicit_retrieval = bool(re.search(r"(찾아|검색|조사|자료를\s*확인)", text, re.I))
     if freshness_required or explicit_retrieval:
         tool_candidates.append("web_search")
     if re.search(r"(계산|합계|평균|통계|분석|csv|엑셀)", text, re.I):
