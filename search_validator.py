@@ -86,11 +86,12 @@ def is_official_release_index(result: dict) -> bool:
     path = (urlsplit(url).path or "/").lower().rstrip("/") or "/"
     if not any(_host_matches(host, domain) for domain in OFFICIAL_DOMAINS):
         return False
-    index_paths = (
-        "/downloads", "/downloads/source", "/downloads/windows",
-        "/download/releases", "/doc/versions", "/releases",
+    exact_index_paths = {"/downloads", "/download/releases", "/doc/versions", "/releases"}
+    index_subtrees = {"/downloads/source", "/downloads/windows"}
+    return (
+        path in exact_index_paths
+        or any(path == candidate or path.startswith(candidate + "/") for candidate in index_subtrees)
     )
-    return any(path == candidate or path.startswith(candidate + "/") for candidate in index_paths)
 
 
 def _tokens(text: str) -> set[str]:
@@ -192,6 +193,17 @@ def assess_results(results: list, freshness_required: bool = False,
         version for row in usable for version in row.get("version_mentions", [])
     })
     version_conflict = version_query and len(versions) > 1
+    index_versions = sorted({
+        version for row in release_indexes for version in row.get("version_mentions", [])
+    })
+    index_text = " ".join(
+        " ".join([row.get("title", ""), row.get("content", "")])
+        for row in release_indexes
+    ).lower()
+    index_explicitly_identifies_latest = bool(
+        index_versions and re.search(r"(latest|최신|stable|안정|current|현재)", index_text)
+    )
+    unresolved_version_conflict = version_conflict and not index_explicitly_identifies_latest
 
     sufficient = len(usable) >= 2
     reasons = []
@@ -206,9 +218,9 @@ def assess_results(results: list, freshness_required: bool = False,
     if requires_company_official and not company_official:
         sufficient = False
         reasons.append("기업 공식 사이트의 발표·고객 사례를 확보하지 못했습니다.")
-    if version_conflict and not release_indexes:
+    if unresolved_version_conflict:
         sufficient = False
-        reasons.append("서로 다른 버전 주장이 발견됐지만 공식 버전 목록으로 충돌을 해소하지 못했습니다.")
+        reasons.append("서로 다른 버전 주장이 발견됐지만 최신 버전을 명시한 공식 릴리스 목록으로 충돌을 해소하지 못했습니다.")
 
     if not reasons:
         reason = "요구된 출처 유형과 관련 검색 결과를 확보했습니다."
@@ -228,6 +240,8 @@ def assess_results(results: list, freshness_required: bool = False,
         "requires_company_official": requires_company_official,
         "version_mentions": versions,
         "version_conflict": version_conflict,
+        "unresolved_version_conflict": unresolved_version_conflict,
+        "official_index_versions": index_versions,
     }
 
 
