@@ -17,7 +17,14 @@ COMPANY_OFFICIAL_DOMAINS = {
     "oracle.com", "nvidia.com", "meta.com", "cohere.com",
     "databricks.com", "snowflake.com", "elastic.co", "pinecone.io",
     "weaviate.io", "langchain.com", "langchain.dev", "mistral.ai",
-    "huggingface.co",
+    "huggingface.co", "elevenlabs.io",
+    # Korean enterprise/customer first-party domains; classification is
+    # ownership metadata only and does not itself prove deployment.
+    "samsung.com", "naver.com", "navercorp.com", "kakao.com", "kakaocorp.com",
+    "kt.com", "skt.com", "skhynix.com", "kbfg.com", "kbcard.com",
+    "lg.com", "lgcns.com", "hyundai.com", "coupang.com", "toss.im",
+    "nhn.com", "linecorp.com", "lotte.co.kr", "hanwha.com", "posco.com",
+    "doosan.com", "cj.net", "woowahan.com",
 }
 OFFICIAL_DOMAINS = CORE_OFFICIAL_DOMAINS | COMPANY_OFFICIAL_DOMAINS
 NEWS_DOMAINS = {
