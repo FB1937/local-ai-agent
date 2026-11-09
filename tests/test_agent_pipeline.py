@@ -70,6 +70,19 @@ class TaskAndPlanningTests(unittest.TestCase):
         self.assertTrue(result["fast_path"])
         self.assertEqual(result["model_route"], "RULE_DIRECT")
 
+    def test_freshness_request_does_not_use_fast_direct(self):
+        model_decision = {
+            "route": "SEARCH",
+            "reason": "최신 정보 확인",
+            "search_query": "Python latest stable release",
+            "confidence": 0.95,
+        }
+        with patch("router._call_router_model", return_value=model_decision) as router_model:
+            result = classify_question("현재 Python 최신 안정 버전을 확인해 줘.")
+        router_model.assert_called_once()
+        self.assertEqual(result["route"], "SEARCH")
+        self.assertFalse(result.get("fast_path", False))
+
     def test_follow_up_conceptual_question_uses_fast_direct(self):
         with patch("router._call_router_model") as router_model:
             result = classify_question(
@@ -291,6 +304,12 @@ class AgentOrchestrationTests(unittest.TestCase):
         }
         self.assertEqual(set(first["stages"]), expected)
         self.assertEqual(first["execution"]["status"], "skipped")
+        self.assertIn("router_decision", first["timings"])
+        self.assertIn("plan_creation", first["timings"])
+        self.assertAlmostEqual(
+            first["timings"]["planning_routing"],
+            first["timings"]["router_decision"] + first["timings"]["plan_creation"],
+        )
         self.assertIn("첫 번째 질문", calls[1])
         self.assertEqual(len(agent.context_manager.turns), 2)
 
