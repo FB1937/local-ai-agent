@@ -49,6 +49,8 @@ class LocalAIAgent:
             "input_scope": "current_user_turn_only",
         }
 
+        # Keep router latency separate from deterministic plan construction.
+        # This makes the main Planning bottleneck measurable in live runs.
         started = perf_counter()
         # The router needs contextual wording to resolve pronouns, but its
         # safety rules must inspect the current turn for freshness/search intent.
@@ -58,8 +60,14 @@ class LocalAIAgent:
             )
         else:
             route_decision = self.router_fn(contextual_question)
+        timings["router_decision"] = perf_counter() - started
+
+        started = perf_counter()
         plan = create_plan(contextual_question, task, route_decision)
-        timings["planning_routing"] = perf_counter() - started
+        timings["plan_creation"] = perf_counter() - started
+        timings["planning_routing"] = (
+            timings["router_decision"] + timings["plan_creation"]
+        )
         stages["planning_routing"] = {
             "status": "completed",
             "route_decision": route_decision,
