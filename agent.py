@@ -30,20 +30,22 @@ class LocalAIAgent:
 
         started = perf_counter()
         context_history = self.context_manager.build_context()
+        contextual_question = self.context_manager.build_contextual_question(question)
         timings["context_understanding"] = perf_counter() - started
         stages["context_understanding"] = {
             "status": "available" if context_history else "empty",
             "prior_turns": len(self.context_manager.turns),
+            "follow_up_resolved": contextual_question != question,
         }
 
         started = perf_counter()
-        task = classify_task(question)
+        task = classify_task(contextual_question)
         timings["task_classification"] = perf_counter() - started
         stages["task_classification"] = {"status": "completed", "data": task}
 
         started = perf_counter()
-        route_decision = self.router_fn(question)
-        plan = create_plan(question, task, route_decision)
+        route_decision = self.router_fn(contextual_question)
+        plan = create_plan(contextual_question, task, route_decision)
         timings["planning_routing"] = perf_counter() - started
         stages["planning_routing"] = {
             "status": "completed",
@@ -52,7 +54,9 @@ class LocalAIAgent:
         }
 
         started = perf_counter()
-        execution = execute_plan(question, plan, search_fn=self.search_fn)
+        execution = execute_plan(
+            contextual_question, plan, search_fn=self.search_fn
+        )
         timings["execution"] = perf_counter() - started
         stages["execution"] = execution
 
@@ -76,6 +80,7 @@ class LocalAIAgent:
 
         return {
             "question": question,
+            "contextual_question": contextual_question,
             "task": task,
             "route_decision": route_decision,
             "plan": plan,
