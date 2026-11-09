@@ -37,6 +37,7 @@ PRERELEASE_NEAR_RE = re.compile(
 )
 LATEST_STABLE_RE = re.compile(
     r"(latest\s+(?:stable\s+)?(?:python\s+)?release|latest\s+stable\s+version|"
+    r"latest\s+python\s+\d+\s+release|latest\s+python\s+release|"
     r"stable\s+release|current\s+stable|newest\s+stable|최신\s*(?:안정\s*)?(?:버전|릴리스)|"
     r"현재\s*안정\s*버전)",
     re.I,
@@ -138,7 +139,7 @@ def _latest_claims(row: dict) -> list[str]:
     claims = []
     # Split independent snippets/sentences so a maintenance release mentioned
     # nearby is not mistaken for the latest release.
-    for segment in re.split(r"[;\\n]+|(?<=[.!?])\\s+", text):
+    for segment in re.split(r"[;\n]+|(?<=[.!?])\s+", text):
         marker = LATEST_STABLE_RE.search(segment)
         if not marker:
             continue
