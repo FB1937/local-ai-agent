@@ -296,7 +296,7 @@ def assess_results(results: list, freshness_required: bool = False,
         "version_mentions": versions,
         "version_conflict": version_conflict,
         "unresolved_version_conflict": unresolved_version_conflict,
-        "official_index_versions": index_versions,
+        "official_index_versions": latest_claims,
     }
 
 
