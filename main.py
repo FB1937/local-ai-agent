@@ -54,8 +54,20 @@ def main():
                 if attempt.get("error"):
                     print(f"  검색 오류: {attempt['error']}")
             print(f"최종 검색 결과: {len(results)}개")
+            print(
+                "[근거 요약] "
+                f"관련 결과 {assessment.get('usable_count', 0)}개 / "
+                f"공식 출처 {assessment.get('official_count', 0)}개 / "
+                f"기업 공식 출처 {assessment.get('company_official_count', 0)}개 / "
+                f"날짜 확인 {assessment.get('dated_count', 0)}개"
+            )
+            if assessment.get("version_conflict"):
+                print(
+                    "[주의] 검색 결과에 상충하는 버전 표기가 있습니다: "
+                    + ", ".join(assessment.get("version_mentions", []))
+                )
             if not assessment["sufficient"]:
-                print("[주의] 검색 근거가 충분하지 않을 수 있습니다.")
+                print("[주의] 검색 근거가 충분하지 않습니다: " + assessment.get("reason", "사유 미상"))
         else:
             print("\n[2] 검색 생략: 로컬 모델로 바로 답변합니다.")
 
