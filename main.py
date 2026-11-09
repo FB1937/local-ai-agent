@@ -118,6 +118,8 @@ def main():
             speed = generation["eval_count"] / generation["eval_duration_seconds"]
             print(f"- 생성 속도: {speed:.2f} tokens/s")
         print(f"- 인용/응답 구조 검사: {'통과' if validation['valid'] else '경고'}")
+        if validation.get("evidence_warnings"):
+            print(f"- 근거 범위 경고: {len(validation['evidence_warnings'])}건")
         print("- 의미적 근거 검증: 미수행 (검색 요약 기반)")
 
 
