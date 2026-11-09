@@ -16,9 +16,9 @@ class FakeResponse:
         return self.body
 
 
-def ollama_body(content, done=True, done_reason="stop", eval_count=12):
+def ollama_body(content, done=True, done_reason="stop", eval_count=12, thinking=""):
     return {
-        "message": {"content": content},
+        "message": {"content": content, "thinking": thinking},
         "done": done,
         "done_reason": done_reason,
         "eval_count": eval_count,
@@ -79,6 +79,30 @@ class AnswerGenerationStabilityTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertTrue(result["incomplete"])
         self.assertTrue(result["error"])
+
+    @patch("llm.requests.post")
+    def test_retry_disables_thinking_and_records_separate_lengths(self, post):
+        post.side_effect = [
+            FakeResponse(ollama_body("", done_reason="length", eval_count=2048,
+                                     thinking="긴 추론 과정")),
+            FakeResponse(ollama_body("최종 답변", done_reason="stop", eval_count=40)),
+        ]
+        result = generate_answer_result("질문", route="HYBRID")
+        self.assertEqual(result["answer"], "최종 답변")
+        self.assertGreater(result["attempts"][0]["thinking_characters"], 0)
+        self.assertEqual(result["attempts"][0]["content_characters"], 0)
+        self.assertEqual(result["attempts"][1]["content_characters"], 5)
+        second_payload = post.call_args_list[1].kwargs["json"]
+        self.assertIs(second_payload["think"], False)
+
+    def test_extract_response_keeps_thinking_separate_from_answer(self):
+        from llm import _extract_response
+        result = _extract_response(
+            ollama_body("본문 답변", thinking="별도 추론", eval_count=30), 1.5
+        )
+        self.assertEqual(result["answer"], "본문 답변")
+        self.assertEqual(result["content_characters"], 5)
+        self.assertEqual(result["thinking_characters"], 5)
 
     @patch("llm.requests.post")
     def test_http_error_returns_failed_generation(self, post):
