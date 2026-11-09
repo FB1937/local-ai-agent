@@ -67,7 +67,12 @@ def main():
         timings["answer_generation"] = perf_counter() - started
         answer = generation.get("answer") or ""
         validation = validate_answer(
-            answer, results, generation_ok=generation.get("ok", False)
+            answer,
+            results,
+            generation_ok=(
+                generation.get("ok", False)
+                and not generation.get("incomplete", False)
+            ),
         )
         display_answer = append_validation_notice(answer, validation)
         if not answer:
