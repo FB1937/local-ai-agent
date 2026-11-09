@@ -150,6 +150,30 @@ class AgentOrchestrationTests(unittest.TestCase):
         self.assertIn("첫 번째 질문", calls[1])
         self.assertEqual(len(agent.context_manager.turns), 2)
 
+    def test_context_dependent_follow_up_is_resolved_before_routing(self):
+        routed_questions = []
+
+        def fake_router(question):
+            routed_questions.append(question)
+            return {
+                "route": "DIRECT", "reason": "test", "search_query": "",
+                "confidence": 0.99, "overridden": False, "fallback": False,
+            }
+
+        def fake_generation(question, results, route, search_assessment):
+            return {
+                "answer": "테스트 답변", "ok": True, "incomplete": False,
+                "attempts": [], "retry_count": 0,
+            }
+
+        agent = LocalAIAgent(router_fn=fake_router, generation_fn=fake_generation)
+        agent.run("Python 3.15.2가 최신 안정 버전인지 확인하고 싶어.")
+        second = agent.run("그럼 그 버전은 언제 출시됐어?")
+
+        self.assertIn("Python 3.15.2", second["contextual_question"])
+        self.assertIn("Python 3.15.2", routed_questions[1])
+        self.assertTrue(second["stages"]["context_understanding"]["follow_up_resolved"])
+
 
 if __name__ == "__main__":
     unittest.main()
