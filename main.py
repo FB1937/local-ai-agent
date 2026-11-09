@@ -113,6 +113,15 @@ def main():
         for name, seconds in timings.items():
             print(f"- {name}: {seconds:.2f}초")
         print(f"- 생성 재시도: {generation.get('retry_count', 0)}회")
+        for attempt in generation.get("attempts", []):
+            print(
+                f"  시도 {attempt.get('attempt')}: "
+                f"content {attempt.get('content_characters', attempt.get('characters', 0))}자 / "
+                f"thinking {attempt.get('thinking_characters', 0)}자 / "
+                f"출력 토큰 {attempt.get('eval_count')} / "
+                f"num_predict {attempt.get('num_predict')} / "
+                f"종료 {attempt.get('done_reason')}"
+            )
         if generation.get("done_reason"):
             print(f"- Ollama 종료 사유: {generation['done_reason']}")
         if generation.get("eval_count") is not None:
