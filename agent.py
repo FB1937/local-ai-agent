@@ -39,12 +39,25 @@ class LocalAIAgent:
         }
 
         started = perf_counter()
-        task = classify_task(contextual_question)
+        # Classify only the current user turn. Prior assistant wording must not
+        # leak keywords (e.g. "latest", "search", "error") into intent/freshness.
+        task = classify_task(question)
         timings["task_classification"] = perf_counter() - started
-        stages["task_classification"] = {"status": "completed", "data": task}
+        stages["task_classification"] = {
+            "status": "completed",
+            "data": task,
+            "input_scope": "current_user_turn_only",
+        }
 
         started = perf_counter()
-        route_decision = self.router_fn(contextual_question)
+        # The router needs contextual wording to resolve pronouns, but its
+        # safety rules must inspect the current turn for freshness/search intent.
+        if self.router_fn is classify_question:
+            route_decision = self.router_fn(
+                contextual_question, current_question=question
+            )
+        else:
+            route_decision = self.router_fn(contextual_question)
         plan = create_plan(contextual_question, task, route_decision)
         timings["planning_routing"] = perf_counter() - started
         stages["planning_routing"] = {
