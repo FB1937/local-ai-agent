@@ -149,7 +149,7 @@ def _latest_claims(row: dict) -> list[str]:
             start, end = match.span()
             context = segment[max(0, start - 28):min(len(segment), end + 28)]
             suffix = segment[end:end + 5].lower()
-            if re.match(r"(?:a|b|rc|dev)\\d*", suffix) or PRERELEASE_NEAR_RE.search(context):
+            if re.match(r"(?:a|b|rc|dev)\d*", suffix) or PRERELEASE_NEAR_RE.search(context):
                 continue
             distance = 0 if marker.start() <= end and marker.end() >= start else min(
                 abs(marker.start() - end), abs(start - marker.end())
