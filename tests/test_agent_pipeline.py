@@ -149,6 +149,13 @@ class TaskAndPlanningTests(unittest.TestCase):
         self.assertEqual(rows[0]["source_type"], "company_official")
         self.assertFalse(rows[0]["company_case_signal"])
 
+    def test_korean_enterprise_first_party_domain_is_company_official(self):
+        from search_validator import classify_source
+        self.assertEqual(
+            classify_source("https://www.naver.com/tech/rag"),
+            "company_official",
+        )
+
     def test_named_customer_deployment_is_candidate_signal(self):
         rows = prepare_results(
             "RAG customer deployment",
