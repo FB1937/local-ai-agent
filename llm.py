@@ -128,10 +128,15 @@ def _extract_response(body, elapsed):
     content = message.get("content")
     if not isinstance(content, str):
         content = ""
+    thinking = message.get("thinking")
+    if not isinstance(thinking, str):
+        thinking = ""
     eval_count = body.get("eval_count")
     eval_duration = body.get("eval_duration")
     return {
         "answer": content.strip(),
+        "content_characters": len(content.strip()),
+        "thinking_characters": len(thinking.strip()),
         "done": body.get("done"),
         "done_reason": body.get("done_reason"),
         "eval_count": eval_count,
@@ -177,6 +182,11 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
                 "num_predict": num_predict,
             },
         }
+        # Qwen3.5 enables thinking by default in many Ollama builds. Keep the
+        # first attempt's model-default behavior, but disable thinking on retry
+        # so the output budget is spent on the user-visible answer.
+        if attempt_number > 0:
+            payload["think"] = False
         started = time.perf_counter()
         try:
             response = requests.post(
@@ -217,9 +227,13 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
         attempts.append({
             "attempt": attempt_number + 1,
             "characters": len(current["answer"]),
+            "content_characters": current.get("content_characters", len(current["answer"])),
+            "thinking_characters": current.get("thinking_characters", 0),
+            "eval_count": current.get("eval_count"),
             "done": current["done"],
             "done_reason": current["done_reason"],
             "num_predict": num_predict,
+            "request_seconds": current.get("request_seconds"),
         })
         is_empty = not current["answer"]
         hit_length_limit = str(current.get("done_reason") or "").lower() in {
@@ -238,7 +252,8 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
         if attempt_number < retry_limit:
             user_prompt += (
                 "\n\n이전 생성이 비어 있거나 출력 제한에 도달했다. "
-                "처음부터 완결된 답변을 작성하고 핵심 내용을 생략하지 마라."
+                "이번에는 추론 과정이나 설명 계획을 출력하지 말고 최종 답변만 작성하라. "
+                "HYBRID라면 핵심 개념, 근거가 있는 최신 내용, 확인되지 않은 사항을 간결하게 구분하라."
             )
 
     answer = (best or {}).get("answer", "")
@@ -261,9 +276,11 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
         "done": (best or {}).get("done"),
         "done_reason": done_reason,
         "eval_count": (best or {}).get("eval_count"),
+        "content_characters": (best or {}).get("content_characters", len(answer)),
+        "thinking_characters": (best or {}).get("thinking_characters", 0),
         "eval_duration_seconds": (best or {}).get("eval_duration_seconds"),
         "total_duration_seconds": (best or {}).get("total_duration_seconds"),
-        "request_seconds": sum(a.get("request_seconds", 0) for a in [best] if a),
+        "request_seconds": sum(a.get("request_seconds", 0) or 0 for a in attempts),
         "incomplete": incomplete,
     }
 
