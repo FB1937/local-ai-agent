@@ -9,6 +9,8 @@ from executor import execute_plan
 from response_generator import generate_response
 from agent import LocalAIAgent
 from router import classify_question
+from search_validator import prepare_results, assess_results
+from llm import _build_prompts
 
 
 class InputAndContextTests(unittest.TestCase):
@@ -81,6 +83,55 @@ class TaskAndPlanningTests(unittest.TestCase):
     def test_generic_tell_me_word_does_not_request_search(self):
         result = classify_task("Python 리스트를 알려줘.")
         self.assertNotIn("web_search", result["tool_candidates"])
+
+    def test_python_latest_canonical_endpoint_extracts_patch_version(self):
+        rows = prepare_results(
+            "Python latest stable release",
+            [{
+                "title": "Python Release Python 3.15.2",
+                "url": "https://www.python.org/downloads/latest",
+                "content": "Python 3.15.2 is the latest release.",
+                "source_type": "official",
+            }],
+        )
+        assessment = assess_results(
+            rows, freshness_required=True, requires_official=True, version_query=True
+        )
+        self.assertEqual(assessment["latest_stable_claims"], ["3.15.2"])
+        self.assertFalse(assessment["unresolved_version_conflict"])
+
+    def test_generic_company_implementation_article_is_not_customer_case_signal(self):
+        rows = prepare_results(
+            "RAG enterprise customer deployment case study",
+            [{
+                "title": "Gen AI 해커톤에서 선보인 기업 맞춤형 RAG 적용 사례",
+                "url": "https://www.samsungsds.com/kr/insights/rag-customization.html",
+                "content": "기업 맞춤형 RAG 기술 소개와 해커톤 결과를 설명합니다.",
+                "source_type": "company_official",
+            }],
+        )
+        self.assertEqual(rows[0]["source_type"], "company_official")
+        self.assertFalse(rows[0]["company_case_signal"])
+
+    def test_named_customer_deployment_is_candidate_signal(self):
+        rows = prepare_results(
+            "RAG customer deployment",
+            [{
+                "title": "Named customer deployment",
+                "url": "https://www.samsungsds.com/kr/insights/customer-story.html",
+                "content": "Customer success story: deployed at Acme Corp for contract review.",
+                "source_type": "company_official",
+            }],
+        )
+        self.assertTrue(rows[0]["company_case_signal"])
+
+    def test_direct_prompt_spells_out_tuple_nested_mutability(self):
+        system_prompt, _ = _build_prompts(
+            "Python 리스트와 튜플 차이", route="DIRECT",
+            context="", search_assessment=None
+        )
+        self.assertIn("튜플은 리스트를 포함할 수 있다", system_prompt)
+        self.assertIn("재귀적으로 불변", system_prompt)
 
 
     def test_planner_keeps_direct_route_local(self):
