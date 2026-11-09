@@ -181,7 +181,10 @@ def assess_results(results: list, freshness_required: bool = False,
             "sufficient": False, "reason": "검색 결과가 없습니다.", "count": 0,
             "usable_count": 0, "dated_count": 0, "official_count": 0,
             "company_official_count": 0, "official_release_index_count": 0,
+            "requires_official": requires_official,
+            "requires_company_official": requires_company_official,
             "version_mentions": [], "version_conflict": False,
+            "unresolved_version_conflict": False, "official_index_versions": [],
         }
 
     usable = [row for row in results if row.get("relevance_score", 0) >= 0.08]
