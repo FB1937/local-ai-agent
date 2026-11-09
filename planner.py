@@ -28,5 +28,9 @@ def create_plan(question: str, task: dict, route_decision: dict) -> dict:
         "search": search_plan,
         "steps": steps,
         "requires_external_execution": route in {"SEARCH", "HYBRID"},
-        "max_replans": 1,
+        "retry_policy": {
+            "max_search_attempts": 2 if route in {"SEARCH", "HYBRID"} else 0,
+            "max_replans": 0,
+            "note": "현재 버전은 검색 검증기의 1회 재검색만 지원하며, 일반 목적 재계획 루프는 후속 단계입니다.",
+        },
     }
