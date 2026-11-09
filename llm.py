@@ -92,7 +92,7 @@ def _build_prompts(question, context, route, search_assessment):
 중요한 최신 사실, 수치, 날짜, 가격은 근거가 있을 때만 말하고 해당 [S1] 형식 ID를 인용한다.
 requires_official이 true이면 공식 출처가 뒷받침하는 범위에서만 결론을 낸다.
 최신 버전 질문에서는 개별 버전의 릴리스 페이지를 최신 버전 목록으로 오인하지 않는다. 공식 다운로드·릴리스 목록 페이지를 우선한다.
-version_conflict가 true이면 충돌을 명시하고 공식 목록이 명확히 해소하지 못한 경우 최신 버전을 단정하지 않는다.
+unresolved_version_conflict가 true이면 충돌을 명시하고 최신 버전을 단정하지 않는다. version_conflict가 true이지만 공식 목록이 최신 버전을 명시해 해소한 경우에는 어떤 공식 목록을 근거로 판단했는지 설명한다.
 근거가 부족하면 확인할 수 없다고 답한다.
 검색 결과가 없으면 출처나 최신 사실을 만들어내지 않는다.
 """.strip()
