@@ -11,8 +11,8 @@ PATTERNS = {
     "creation": r"(작성|만들어|생성|구현|개발|설계|코드 짜|초안)",
     "troubleshooting": r"(오류|에러|문제|실패|안 되|작동하지|디버깅|원인)",
     "comparison": r"(비교|차이|장단점|어느 .* 낫|추천)",
-    "learning": r"(설명|원리|개념|공부|학습|가르쳐|이해)",
-    "information_seeking": r"(찾아|검색|조사|최신|최근|현황|동향|알려)",
+    "learning": r"(설명|원리|개념|공부|학습|가르쳐|이해|어떻게\s*(?:돼|되)|무슨\s*(?:일|차이)|무엇이\s*(?:달라|다르))",
+    "information_seeking": r"(찾아|검색|조사|최신|최근|현황|동향|자료를\s*확인)",
     "execution": r"(실행|저장해|업로드|다운로드|예약|전송|등록|삭제)",
 }
 FRESHNESS_RE = re.compile(
@@ -81,7 +81,8 @@ def classify_task(question: str) -> dict:
         task_types.append("analysis")
 
     tool_candidates = []
-    if freshness_required or "information_seeking" in matched:
+    explicit_retrieval = bool(re.search(r"(찾아|검색|조사|자료를\\s*확인)", text, re.I))
+    if freshness_required or explicit_retrieval:
         tool_candidates.append("web_search")
     if re.search(r"(계산|합계|평균|통계|분석|csv|엑셀)", text, re.I):
         tool_candidates.append("python")
