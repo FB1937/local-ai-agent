@@ -138,6 +138,28 @@ class SearchQualityTests(unittest.TestCase):
         self.assertGreaterEqual(result["official_release_index_count"], 1)
 
 
+    def test_latest_python_3_release_phrase_is_recognized(self):
+        rows = prepare_results("Python latest stable version", [
+            {"url": "https://www.python.org/downloads/", "title": "Download Python",
+             "content": "Latest Python 3 Release: Python 3.15.2\nPython 3.14.10 bugfix release"},
+            {"url": "https://www.python.org/downloads/release/python-3152/", "title": "Python 3.15.2",
+             "content": "Python 3.15.2 release"},
+        ], now=self.now)
+        result = assess_results(rows, requires_official=True, version_query=True)
+        self.assertEqual(result["latest_stable_claims"], ["3.15.2"])
+        self.assertFalse(result["unresolved_version_conflict"])
+
+    def test_latest_claim_sentence_does_not_absorb_maintenance_release(self):
+        rows = prepare_results("Python latest stable version", [
+            {"url": "https://www.python.org/downloads/", "title": "Python downloads",
+             "content": "Python 3.15.2 is the latest stable release. Python 3.14.10 remains in maintenance."},
+            {"url": "https://www.python.org/downloads/release/python-3152/", "title": "Python 3.15.2",
+             "content": "Python 3.15.2 release"},
+        ], now=self.now)
+        result = assess_results(rows, requires_official=True, version_query=True)
+        self.assertEqual(result["latest_stable_claims"], ["3.15.2"])
+        self.assertFalse(result["version_conflict"])
+
     def test_different_maintenance_branches_are_not_latest_conflicts(self):
         rows = prepare_results("Python latest stable version", [
             {"url": "https://www.python.org/downloads/", "title": "Python downloads",
