@@ -304,7 +304,7 @@ def assess_results(results: list, freshness_required: bool = False,
     reasons = []
     if not sufficient:
         reasons.append("질문과 관련된 결과가 2개 미만입니다.")
-    if freshness_required and not dated and not (official or company_official):
+    if freshness_required and not dated and not (official or company_official or release_indexes):
         sufficient = False
         reasons.append("게시일 또는 1차 출처가 없어 최신성을 확인하기 어렵습니다.")
     if requires_official and not official and not release_indexes:
