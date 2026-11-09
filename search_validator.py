@@ -10,15 +10,16 @@ from search_planner import plan_search, build_retry_query
 TRACKING_KEYS = {"fbclid", "gclid", "dclid", "mc_cid", "mc_eid"}
 
 # First-party technical/product documentation and release sources.
-OFFICIAL_DOMAINS = {
-    "python.org", "postgresql.org", "openai.com", "microsoft.com",
-    "pypi.org", "ibm.com", "samsungsds.com", "google.com",
-    "amazon.com", "aws.amazon.com", "cloud.google.com",
-    "anthropic.com", "salesforce.com", "oracle.com", "nvidia.com",
-    "meta.com", "cohere.com", "databricks.com", "snowflake.com",
-    "elastic.co", "pinecone.io", "weaviate.io", "langchain.com",
-    "langchain.dev", "mistral.ai", "huggingface.co",
+CORE_OFFICIAL_DOMAINS = {"python.org", "postgresql.org", "pypi.org"}
+COMPANY_OFFICIAL_DOMAINS = {
+    "openai.com", "microsoft.com", "ibm.com", "samsungsds.com",
+    "google.com", "amazon.com", "anthropic.com", "salesforce.com",
+    "oracle.com", "nvidia.com", "meta.com", "cohere.com",
+    "databricks.com", "snowflake.com", "elastic.co", "pinecone.io",
+    "weaviate.io", "langchain.com", "langchain.dev", "mistral.ai",
+    "huggingface.co",
 }
+OFFICIAL_DOMAINS = CORE_OFFICIAL_DOMAINS | COMPANY_OFFICIAL_DOMAINS
 NEWS_DOMAINS = {
     "reuters.com", "apnews.com", "bbc.com", "bbc.co.uk",
     "yna.co.kr", "bloomberg.com", "techcrunch.com",
@@ -71,7 +72,9 @@ def classify_source(url: str) -> str:
         return "news"
     if any(_host_matches(host, domain) for domain in COMMUNITY_DOMAINS):
         return "technical_community"
-    if any(_host_matches(host, domain) for domain in OFFICIAL_DOMAINS):
+    if any(_host_matches(host, domain) for domain in CORE_OFFICIAL_DOMAINS):
+        return "official"
+    if any(_host_matches(host, domain) for domain in COMPANY_OFFICIAL_DOMAINS):
         return "company_official"
     return "other"
 
