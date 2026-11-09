@@ -193,10 +193,11 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
                 "num_predict": num_predict,
             },
         }
-        # Qwen3.5 enables thinking by default in many Ollama builds. Keep the
-        # first attempt's model-default behavior, but disable thinking on retry
-        # so the output budget is spent on the user-visible answer.
-        if attempt_number > 0:
+        # Simple DIRECT explanations do not need an extended reasoning trace.
+        # Disable thinking on the first attempt to avoid spending the answer
+        # budget on hidden reasoning. SEARCH/HYBRID retain model-default thinking
+        # once; all retries disable it to prioritize a complete final answer.
+        if route == "DIRECT" or attempt_number > 0:
             payload["think"] = False
         started = time.perf_counter()
         try:
