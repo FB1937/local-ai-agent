@@ -31,6 +31,22 @@ ACADEMIC_DOMAINS = {
 COMMUNITY_DOMAINS = {"github.com", "gitlab.com", "stackoverflow.com"}
 
 VERSION_RE = re.compile(r"(?<![A-Za-z0-9])(?:v)?(\d+\.\d+(?:\.\d+){0,2})(?![A-Za-z0-9])")
+PRERELEASE_NEAR_RE = re.compile(
+    r"(alpha|beta|pre[- ]?release|release candidate|\brc\b|\bdev\b|사전\s*릴리스|프리릴리스|개발\s*버전)",
+    re.I,
+)
+LATEST_STABLE_RE = re.compile(
+    r"(latest\s+(?:stable\s+)?(?:python\s+)?release|latest\s+stable\s+version|"
+    r"stable\s+release|current\s+stable|newest\s+stable|최신\s*(?:안정\s*)?(?:버전|릴리스)|"
+    r"현재\s*안정\s*버전)",
+    re.I,
+)
+CUSTOMER_CASE_RE = re.compile(
+    r"(customer\s+(?:success\s+)?story|customer\s+case\s+study|case\s+study|"
+    r"named\s+customer|고객\s*사례|고객사\s*(?:도입|적용|구축)|"
+    r"도입\s*사례|구축\s*사례|적용\s*사례|implemented\s+at|deployed\s+at)",
+    re.I,
+)
 
 
 def _host_matches(host: str, domain: str) -> bool:
@@ -92,6 +108,35 @@ def is_official_release_index(result: dict) -> bool:
         path in exact_index_paths
         or any(path == candidate or path.startswith(candidate + "/") for candidate in index_subtrees)
     )
+
+
+def _stable_version_mentions(text: str) -> list[str]:
+    """Extract numeric versions while excluding nearby pre-release mentions."""
+    stable = []
+    for match in VERSION_RE.finditer(text or ""):
+        start, end = match.span()
+        context = (text or "")[max(0, start - 28):min(len(text or ""), end + 28)]
+        suffix = (text or "")[end:end + 5].lower()
+        if re.match(r"(?:a|b|rc|dev)\d*", suffix):
+            continue
+        if PRERELEASE_NEAR_RE.search(context):
+            continue
+        stable.append(match.group(1))
+    return sorted(set(stable), key=_version_key)
+
+
+def _version_key(value: str) -> tuple:
+    parts = [int(part) for part in value.split(".")]
+    return tuple((parts + [0, 0, 0])[:3])
+
+
+def _latest_claims(row: dict) -> list[str]:
+    if not row.get("official_release_index"):
+        return []
+    text = " ".join([row.get("title", ""), row.get("content", "")])
+    if not LATEST_STABLE_RE.search(text):
+        return []
+    return _stable_version_mentions(text)
 
 
 def _tokens(text: str) -> set[str]:
@@ -160,9 +205,12 @@ def prepare_results(query: str, raw_results: list, max_results: int = 8,
         row["source_type"] = classify_source(normalized_url)
         row["relevance_score"] = round(relevance_score(query, row), 3)
         row["official_release_index"] = is_official_release_index(row)
-        row["version_mentions"] = sorted(set(VERSION_RE.findall(
-            " ".join([row.get("title", ""), row.get("content", "")])
-        )))
+        source_text = " ".join([row.get("title", ""), row.get("content", "")])
+        row["version_mentions"] = sorted(set(VERSION_RE.findall(source_text)), key=_version_key)
+        row["latest_stable_claims"] = _latest_claims(row)
+        row["company_case_signal"] = (
+            row["source_type"] == "company_official" and bool(CUSTOMER_CASE_RE.search(source_text))
+        )
         prepared.append(row)
     for row in prepared:
         _source_rank(row, now)
@@ -180,7 +228,8 @@ def assess_results(results: list, freshness_required: bool = False,
         return {
             "sufficient": False, "reason": "검색 결과가 없습니다.", "count": 0,
             "usable_count": 0, "dated_count": 0, "official_count": 0,
-            "company_official_count": 0, "official_release_index_count": 0,
+            "company_official_count": 0, "company_case_signal_count": 0,
+            "official_release_index_count": 0, "latest_stable_claims": [],
             "requires_official": requires_official,
             "requires_company_official": requires_company_official,
             "version_mentions": [], "version_conflict": False,
@@ -191,22 +240,21 @@ def assess_results(results: list, freshness_required: bool = False,
     dated = [row for row in usable if _published_timestamp(row.get("published")) is not None]
     official = [row for row in usable if row.get("source_type") == "official"]
     company_official = [row for row in usable if row.get("source_type") == "company_official"]
+    company_case_signals = [row for row in company_official if row.get("company_case_signal")]
     release_indexes = [row for row in usable if row.get("official_release_index")]
     versions = sorted({
         version for row in usable for version in row.get("version_mentions", [])
-    })
-    version_conflict = version_query and len(versions) > 1
-    index_versions = sorted({
-        version for row in release_indexes for version in row.get("version_mentions", [])
-    })
-    index_text = " ".join(
-        " ".join([row.get("title", ""), row.get("content", "")])
-        for row in release_indexes
-    ).lower()
-    index_explicitly_identifies_latest = bool(
-        index_versions and re.search(r"(latest|최신|stable|안정|current|현재)", index_text)
+    }, key=_version_key)
+    latest_claims = sorted({
+        version for row in usable for version in row.get("latest_stable_claims", [])
+    }, key=_version_key)
+    # Different patch/minor versions in ordinary snippets are not, by themselves,
+    # contradictory latest-version claims. Compare only explicit claims from
+    # official release overview pages.
+    version_conflict = version_query and len(latest_claims) > 1
+    unresolved_version_conflict = version_query and (
+        not latest_claims or len(latest_claims) > 1
     )
-    unresolved_version_conflict = version_conflict and not index_explicitly_identifies_latest
 
     sufficient = len(usable) >= 2
     reasons = []
@@ -220,10 +268,12 @@ def assess_results(results: list, freshness_required: bool = False,
         reasons.append("공식 문서 또는 공식 릴리스 목록을 확보하지 못했습니다.")
     if requires_company_official and not company_official:
         sufficient = False
-        reasons.append("기업 공식 사이트의 발표·고객 사례를 확보하지 못했습니다.")
+        reasons.append("기업 공식 도메인의 자료를 확보하지 못했습니다.")
+    if requires_company_official and not company_case_signals:
+        reasons.append("기업 공식 자료는 있으나 실제 고객 도입 사례를 식별할 수 있는 표현은 확인되지 않았습니다.")
     if unresolved_version_conflict:
         sufficient = False
-        reasons.append("서로 다른 버전 주장이 발견됐지만 최신 버전을 명시한 공식 릴리스 목록으로 충돌을 해소하지 못했습니다.")
+        reasons.append("공식 릴리스 목록에서 최신 안정 버전을 명확히 식별하지 못했습니다.")
 
     if not reasons:
         reason = "요구된 출처 유형과 관련 검색 결과를 확보했습니다."
@@ -238,7 +288,9 @@ def assess_results(results: list, freshness_required: bool = False,
         "dated_count": len(dated),
         "official_count": len(official),
         "company_official_count": len(company_official),
+        "company_case_signal_count": len(company_case_signals),
         "official_release_index_count": len(release_indexes),
+        "latest_stable_claims": latest_claims,
         "requires_official": requires_official,
         "requires_company_official": requires_company_official,
         "version_mentions": versions,
