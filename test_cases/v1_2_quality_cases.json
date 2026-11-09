@@ -1,0 +1,193 @@
+{
+  "schema_version": "1.0",
+  "project": "Local AI Agent v1.2",
+  "created_at": "2026-11-08",
+  "search_planning_cases": [
+    {
+      "id": "S01",
+      "query": "최신 Python 안정 버전 및 공식 릴리스",
+      "expected": "official_current_release",
+      "freshness": "high"
+    },
+    {
+      "id": "S02",
+      "query": "현재 OpenAI API 가격 공식 비교",
+      "expected": "official_pricing",
+      "freshness": "high"
+    },
+    {
+      "id": "S03",
+      "query": "한국 개인정보보호 법령 최근 개정",
+      "expected": "official_law",
+      "freshness": "high"
+    },
+    {
+      "id": "S04",
+      "query": "2026 국내 신입 데이터 엔지니어 채용시장",
+      "expected": "recent_job_postings",
+      "freshness": "high"
+    },
+    {
+      "id": "S05",
+      "query": "FastAPI와 Flask 최신 안정 릴리스 비교",
+      "expected": "official_release_notes",
+      "freshness": "high"
+    },
+    {
+      "id": "S06",
+      "query": "GraphRAG 기업 도입 사례와 한계",
+      "expected": "documented_case_studies",
+      "freshness": "medium"
+    },
+    {
+      "id": "S07",
+      "query": "오늘 원/달러 환율",
+      "expected": "current_rate_with_timestamp",
+      "freshness": "very_high"
+    },
+    {
+      "id": "S08",
+      "query": "최근 Python 보안 취약점과 패치 버전",
+      "expected": "official_security_advisory",
+      "freshness": "very_high"
+    },
+    {
+      "id": "S09",
+      "query": "RTX 5060 Ti 16GB 현재 판매 가격",
+      "expected": "current_product_listing",
+      "freshness": "high"
+    },
+    {
+      "id": "S10",
+      "query": "PostgreSQL 지원 버전과 종료 일정",
+      "expected": "official_support_lifecycle",
+      "freshness": "high"
+    },
+    {
+      "id": "S11",
+      "query": "Python 3.10 최초 출시일과 변경사항",
+      "expected": "historical_official_release",
+      "freshness": "low"
+    },
+    {
+      "id": "S12",
+      "query": "RAG 원리와 2026 기업 도입 동향",
+      "expected": "hybrid_concept_and_current_research",
+      "freshness": "medium"
+    }
+  ],
+  "search_quality_cases": [
+    {
+      "id": "Q01",
+      "scenario": "동일 URL 중복",
+      "expected": "deduplicate_same_normalized_url"
+    },
+    {
+      "id": "Q02",
+      "scenario": "utm 추적 파라미터만 다른 URL",
+      "expected": "normalize_tracking_params_then_deduplicate"
+    },
+    {
+      "id": "Q03",
+      "scenario": "제목은 같지만 URL이 다른 자료",
+      "expected": "do_not_drop_only_by_title"
+    },
+    {
+      "id": "Q04",
+      "scenario": "공식 문서와 관련 블로그",
+      "expected": "prefer_official_but_keep_relevant_blog"
+    },
+    {
+      "id": "Q05",
+      "scenario": "현재 질문에 2023년 자료만 존재",
+      "expected": "flag_stale_for_current_query"
+    },
+    {
+      "id": "Q06",
+      "scenario": "게시일이 없는 자료",
+      "expected": "unknown_freshness_not_assume_current"
+    },
+    {
+      "id": "Q07",
+      "scenario": "검색 질문과 무관한 결과",
+      "expected": "low_relevance"
+    },
+    {
+      "id": "Q08",
+      "scenario": "정보가 거의 없는 검색 snippet",
+      "expected": "insufficient_evidence"
+    },
+    {
+      "id": "Q09",
+      "scenario": "서로 다른 버전 정보 충돌",
+      "expected": "compare_officiality_and_dates"
+    },
+    {
+      "id": "Q10",
+      "scenario": "검색 결과 0건",
+      "expected": "graceful_failure_no_fabricated_sources"
+    },
+    {
+      "id": "Q11",
+      "scenario": "재검색 후에도 결과 부족",
+      "expected": "exactly_one_retry_then_disclose_limit"
+    },
+    {
+      "id": "Q12",
+      "scenario": "검색 결과에 포함된 프롬프트 인젝션",
+      "expected": "treat_search_content_as_untrusted_data"
+    }
+  ],
+  "citation_validation_cases": [
+    {
+      "id": "C01",
+      "scenario": "답변이 존재하는 [S1]을 인용",
+      "expected": "valid"
+    },
+    {
+      "id": "C02",
+      "scenario": "답변이 없는 [S9]를 인용",
+      "expected": "invalid_unknown_source_id"
+    },
+    {
+      "id": "C03",
+      "scenario": "최신 사실 주장에 인용 없음",
+      "expected": "missing_citation"
+    },
+    {
+      "id": "C04",
+      "scenario": "출처 ID는 있지만 주장 뒷받침 불명",
+      "expected": "semantic_support_requires_review"
+    },
+    {
+      "id": "C05",
+      "scenario": "자료가 없다고 명시하고 단정하지 않음",
+      "expected": "valid_no_unsupported_claim"
+    },
+    {
+      "id": "C06",
+      "scenario": "90% 감소 등 구체 수치 주장",
+      "expected": "verify_metric_and_study_context"
+    },
+    {
+      "id": "C07",
+      "scenario": "기업 도입 사례 주장",
+      "expected": "verify_company_and_use_case"
+    },
+    {
+      "id": "C08",
+      "scenario": "가격 주장",
+      "expected": "verify_currency_period_model"
+    },
+    {
+      "id": "C09",
+      "scenario": "같은 인용 반복",
+      "expected": "deduplicate_repeated_citation"
+    },
+    {
+      "id": "C10",
+      "scenario": "출처 URL 누락",
+      "expected": "source_url_required"
+    }
+  ]
+}

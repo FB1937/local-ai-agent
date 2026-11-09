@@ -1,0 +1,83 @@
+{
+  "search_planning": [
+    {
+      "id": "S01",
+      "query": "Python 최신 안정 버전",
+      "expected": "current_year_in_query"
+    },
+    {
+      "id": "S02",
+      "query": "Python 3.10 최초 출시일",
+      "expected": "preserve_historical_constraint"
+    },
+    {
+      "id": "S03",
+      "query": "오늘 부산 날씨",
+      "expected": "time_range_day"
+    },
+    {
+      "id": "S04",
+      "query": "최근 1개월 보안 공지",
+      "expected": "time_range_month"
+    },
+    {
+      "id": "S05",
+      "query": "REST API 원리",
+      "expected": "no_time_filter"
+    }
+  ],
+  "search_quality": [
+    {
+      "id": "Q01",
+      "scenario": "same URL with utm parameters",
+      "expected": "deduplicate"
+    },
+    {
+      "id": "Q02",
+      "scenario": "same title but different URL",
+      "expected": "keep_both"
+    },
+    {
+      "id": "Q03",
+      "scenario": "no results",
+      "expected": "insufficient"
+    },
+    {
+      "id": "Q04",
+      "scenario": "only undated snippets for freshness query",
+      "expected": "do_not_assert_freshness"
+    },
+    {
+      "id": "Q05",
+      "scenario": "first attempt insufficient",
+      "expected": "retry_once"
+    },
+    {
+      "id": "Q06",
+      "scenario": "second attempt insufficient",
+      "expected": "stop_after_second_attempt"
+    }
+  ],
+  "citations": [
+    {
+      "id": "C01",
+      "scenario": "valid [S1] and URL",
+      "expected": "valid"
+    },
+    {
+      "id": "C02",
+      "scenario": "unknown [S9]",
+      "expected": "invalid_unknown_id"
+    },
+    {
+      "id": "C03",
+      "scenario": "citation without URL",
+      "expected": "invalid_missing_url"
+    },
+    {
+      "id": "C04",
+      "scenario": "semantic claim support",
+      "expected": "manual_review_not_claimed_automatically"
+    }
+  ]
+}
