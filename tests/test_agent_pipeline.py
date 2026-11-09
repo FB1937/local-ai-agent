@@ -51,6 +51,17 @@ class TaskAndPlanningTests(unittest.TestCase):
         self.assertEqual(result["intent"], "creation")
         self.assertIn("generation", result["task_types"])
 
+    def test_follow_up_concept_question_does_not_request_search(self):
+        result = classify_task("그럼 튜플 안에 리스트가 있으면 어떻게 돼?")
+        self.assertEqual(result["intent"], "learning")
+        self.assertFalse(result["freshness_required"])
+        self.assertNotIn("web_search", result["tool_candidates"])
+
+    def test_generic_tell_me_word_does_not_request_search(self):
+        result = classify_task("Python 리스트를 알려줘.")
+        self.assertNotIn("web_search", result["tool_candidates"])
+
+
     def test_planner_keeps_direct_route_local(self):
         plan = create_plan(
             "리스트와 튜플의 차이를 설명해 줘.",
@@ -93,6 +104,24 @@ class ExecutionAndResponseTests(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["tool_calls"], ["searxng"])
         self.assertEqual(result["results"][0]["source_id"], "S1")
+
+    def test_insufficient_hybrid_evidence_adds_mandatory_boundary_warning(self):
+        from answer_validator import validate_answer, append_validation_notice
+
+        validation = validate_answer(
+            "RAG가 업계 표준으로 자리 잡았습니다.",
+            [],
+            search_assessment={
+                "sufficient": False,
+                "requires_company_official": True,
+                "company_official_count": 0,
+                "company_case_signal_count": 0,
+            },
+            route="HYBRID",
+        )
+        rendered = append_validation_notice("RAG가 업계 표준으로 자리 잡았습니다.", validation)
+        self.assertIn("검색 근거가 충분하지 않습니다", rendered)
+        self.assertIn("실제 고객 도입 사례는 확인되지 않았습니다", rendered)
 
     def test_response_generation_receives_prior_context(self):
         seen = {}
