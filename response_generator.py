@@ -30,6 +30,8 @@ def generate_response(question: str, execution: dict, route: str,
             generation.get("ok", False)
             and not generation.get("incomplete", False)
         ),
+        search_assessment=assessment,
+        route=route,
     )
     display_answer = append_validation_notice(answer, validation)
     if not answer:
