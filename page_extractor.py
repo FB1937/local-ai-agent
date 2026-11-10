@@ -169,6 +169,8 @@ def extract_official_pages(
     extracted_count = 0
     html_extracted_count = 0
     pdf_extracted_count = 0
+    html_attempted_count = 0
+    pdf_attempted_count = 0
     attempted = 0
     errors = []
 
@@ -217,6 +219,10 @@ def extract_official_pages(
             continue
 
         attempted += 1
+        if is_pdf:
+            pdf_attempted_count += 1
+        else:
+            html_attempted_count += 1
         try:
             if is_pdf:
                 data, final_url, content_type = pdf_fetcher(item.get("url", ""), timeout=timeout)
@@ -261,6 +267,8 @@ def extract_official_pages(
         "extracted_count": extracted_count,
         "html_extracted_count": html_extracted_count,
         "pdf_extracted_count": pdf_extracted_count,
+        "html_attempted_count": html_attempted_count,
+        "pdf_attempted_count": pdf_attempted_count,
         "attempted_count": attempted,
         "errors": errors,
     }
