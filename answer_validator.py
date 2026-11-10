@@ -36,7 +36,7 @@ NEGATED_RE = re.compile(
 def _sentences(text: str) -> list[str]:
     return [
         part.strip()
-        for part in re.split(r"(?<=[.!?。])\s+|\n+", text or "")
+        for part in re.split(r"(?<=[!?。])\s+|(?<!\d)\.\s+(?!\[S\d+\])|\n+", text or "")
         if part.strip()
     ]
 
