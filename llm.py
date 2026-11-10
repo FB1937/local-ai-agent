@@ -31,7 +31,10 @@ def _format_search_context(search_results):
             f"출처 유형: {result.get('source_type', 'unknown')}\n"
             f"게시일: {result.get('published') or '확인되지 않음'}\n"
             f"공식 릴리스 목록 후보: {'예' if result.get('official_release_index') else '아니오'}\n"
-            f"검색 요약: {result.get('content', '')}"
+            f"검색 요약: {result.get('content', '')}\n"
+            f"원문 추출 상태: {result.get('extraction_status', 'not_attempted')}\n"
+            f"원문 제목: {result.get('extracted_title') or '추출되지 않음'}\n"
+            f"원문 내용: {(result.get('extracted_text') or '')[:8000]}"
         )
     return "\n\n".join(blocks)
 
