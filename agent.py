@@ -41,7 +41,7 @@ class LocalAIAgent:
         started = perf_counter()
         # Classify only the current user turn. Prior assistant wording must not
         # leak keywords (e.g. "latest", "search", "error") into intent/freshness.
-        task = classify_task(question)
+        task = classify_task(question, context_history=context_history)
         timings["task_classification"] = perf_counter() - started
         stages["task_classification"] = {
             "status": "completed",
