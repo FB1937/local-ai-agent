@@ -16,7 +16,7 @@ LATEST_RE = re.compile(r"(최신|최신\s*안정|현재\s*안정|latest\s*(?:sta
 PERCENT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(%|퍼센트|percent)", re.I)
 GARTNER_RE = re.compile(r"\bGartner\b", re.I)
 DEPLOYMENT_RE = re.compile(
-    r"(실제\s*)?(?:고객(?:사)?\s*)?(?:도입(?:했|한|하고|하여|중|사례)|"
+    r"(실제\s*)?(?:고객(?:사)?\s*)?(?:도입(?:했|한|하고|하여|해|중|사례)|"
     r"구축(?:했|한|하고|하여|중)|운영(?:하고|중|한다)|배포(?:했|한|되어)|"
     r"deployed\s+at|implemented\s+at|customer\s+(?:success\s+)?story)",
     re.I,
