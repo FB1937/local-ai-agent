@@ -14,7 +14,7 @@ CITATION_RE = re.compile(r"\[(S\d+)\]")
 VERSION_RE = re.compile(r"(?<![A-Za-z0-9])(\d+\.\d+(?:\.\d+){0,2})(?![A-Za-z0-9])")
 LATEST_RE = re.compile(r"(최신|최신\s*안정|현재\s*안정|latest\s*(?:stable)?|current\s*stable)", re.I)
 PERCENT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*(%|퍼센트|percent)", re.I)
-GARTNER_RE = re.compile(r"\bGartner\b", re.I)
+GARTNER_RE = re.compile(r"(?<![A-Za-z])Gartner(?![A-Za-z])", re.I)
 DEPLOYMENT_RE = re.compile(
     r"(실제\s*)?(?:고객(?:사)?\s*)?(?:도입(?:했|한|하고|하여|해|중|사례)|"
     r"구축(?:했|한|하고|하여|중)|운영(?:하고|중|한다)|배포(?:했|한|되어)|"
@@ -302,6 +302,7 @@ def validate_answer(
             and not unsupported_checks
         ),
         generation_ok=bool(generation_ok),
+        empty_answer=empty_answer,
         found_ids=found,
         unknown_ids=unknown,
         missing_url_ids=missing_url,
