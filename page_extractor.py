@@ -14,6 +14,7 @@ from urllib.parse import urljoin, urlsplit
 import requests
 
 from search_validator import classify_source
+from content_quality import assess_extracted_content
 
 MAX_PAGE_BYTES = 1_500_000
 MAX_EXTRACTED_CHARS = 30_000
@@ -260,6 +261,17 @@ def extract_official_pages(
             item["extracted_char_count"] = 0
             item["extraction_error"] = f"{type(exc).__name__}: {exc}"
             errors.append(f"{item.get('source_id', '?')}: {item['extraction_error']}")
+        if item.get("extraction_status") in {"extracted", "empty"}:
+            item["content_quality"] = assess_extracted_content(
+                item.get("extracted_text"),
+                document_type=item.get("document_type", "html"),
+            )
+        else:
+            item["content_quality"] = {
+                "status": "not_assessed",
+                "reason": item.get("extraction_error", "본문 추출이 수행되지 않았습니다."),
+                "is_factual_verification": False,
+            }
         enriched.append(item)
 
     return {
