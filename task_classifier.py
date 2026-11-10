@@ -15,6 +15,11 @@ PATTERNS = {
     "information_seeking": r"(찾아|검색|조사|최신|최근|현황|동향|자료를\s*확인)",
     "execution": r"(실행|저장해|업로드|다운로드|예약|전송|등록|삭제)",
 }
+FOLLOW_UP_RE = re.compile(
+    r"^(?:그렇다면|그럼|그러면|그런데|그렇다면|이어서|앞서|방금)|"
+    r"(?:위 내용|그 부분|그것도|그 경우|그 이유|더 자세히|좀 더 자세히|예를 들어)",
+    re.I,
+)
 FRESHNESS_RE = re.compile(
     r"(최신|최근|현재|오늘|실시간|올해|이번\s*(주|달|해)|20\d{2}년|latest|current)",
     re.I,
@@ -28,7 +33,7 @@ DOMAIN_PATTERNS = {
 }
 
 
-def classify_task(question: str) -> dict:
+def classify_task(question: str, context_history: str = "") -> dict:
     text = (question or "").strip()
     if not text:
         raise ValueError("분류할 질문이 비어 있습니다.")
@@ -61,6 +66,7 @@ def classify_task(question: str) -> dict:
         "general",
     )
     freshness_required = bool(FRESHNESS_RE.search(text))
+    is_follow_up = bool(context_history and FOLLOW_UP_RE.search(text))
 
     task_types = []
     if "information_seeking" in matched:
@@ -79,6 +85,8 @@ def classify_task(question: str) -> dict:
         task_types.append("tool_execution")
     if not task_types:
         task_types.append("analysis")
+    if is_follow_up:
+        task_types.append("follow_up")
 
     tool_candidates = []
     explicit_retrieval = bool(re.search(r"(찾아|검색|조사|자료를\s*확인)", text, re.I))
@@ -103,6 +111,8 @@ def classify_task(question: str) -> dict:
 
     return {
         "intent": intent,
+        "conversation_type": "follow_up" if is_follow_up else "standalone",
+        "is_follow_up": is_follow_up,
         "matched_intents": matched,
         "task_types": task_types,
         "domain": domain,
