@@ -129,8 +129,14 @@ def extract_official_pages(
         item = dict(row)
         item["retrieved_at"] = datetime.now(timezone.utc).isoformat()
         source_type = item.get("source_type") or classify_source(item.get("url", ""))
-        if source_type not in {"official", "company_official"} or attempted >= max(0, max_pages):
+        if source_type not in {"official", "company_official"}:
             item.setdefault("extraction_status", "skipped_non_official")
+            item.setdefault("extracted_char_count", 0)
+            enriched.append(item)
+            continue
+        if attempted >= max(0, max_pages):
+            item.setdefault("extraction_status", "skipped_page_limit")
+            item.setdefault("extracted_char_count", 0)
             enriched.append(item)
             continue
 
@@ -143,11 +149,15 @@ def extract_official_pages(
             item["final_url"] = final_url
             item["extracted_title"] = title
             item["extracted_text"] = text
+            item["extracted_char_count"] = len(text or "")
             item["extraction_status"] = "extracted" if text else "empty"
+            if not text:
+                item["extraction_error"] = "본문 텍스트를 추출하지 못했습니다."
             if text:
                 extracted_count += 1
         except Exception as exc:
             item["extraction_status"] = "failed"
+            item["extracted_char_count"] = 0
             item["extraction_error"] = f"{type(exc).__name__}: {exc}"
             errors.append(f"{item.get('source_id', '?')}: {item['extraction_error']}")
         enriched.append(item)
