@@ -70,7 +70,7 @@ class AnswerGenerationStabilityTests(unittest.TestCase):
         self.assertTrue(result["error"])
 
     @patch("llm.requests.post")
-    def test_length_limited_response_retries_with_more_tokens(self, post):
+    def test_length_limited_response_retries_with_same_budget_and_reduced_scope(self, post):
         post.side_effect = [
             FakeResponse(ollama_body("잘린 답변", done=True, done_reason="length")),
             FakeResponse(ollama_body("완결된 답변", done=True, done_reason="stop")),
@@ -80,10 +80,11 @@ class AnswerGenerationStabilityTests(unittest.TestCase):
         self.assertEqual(result["answer"], "완결된 답변")
         first_payload = post.call_args_list[0].kwargs["json"]
         second_payload = post.call_args_list[1].kwargs["json"]
-        self.assertGreater(
+        self.assertEqual(
             second_payload["options"]["num_predict"],
             first_payload["options"]["num_predict"],
         )
+        self.assertIs(second_payload["think"], False)
 
     @patch("llm.requests.post")
     def test_length_limited_response_is_flagged_after_retry(self, post):
@@ -92,7 +93,7 @@ class AnswerGenerationStabilityTests(unittest.TestCase):
             FakeResponse(ollama_body("여전히 부분 답변", done_reason="length")),
         ]
         result = generate_answer_result("질문", route="DIRECT")
-        self.assertTrue(result["ok"])
+        self.assertFalse(result["ok"])
         self.assertTrue(result["incomplete"])
         self.assertTrue(result["error"])
 
