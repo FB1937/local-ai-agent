@@ -145,14 +145,20 @@ def _latest_claims(row: dict) -> list[str]:
     """Extract only the version nearest an explicit latest-stable phrase on an official index."""
     if not row.get("official_release_index"):
         return []
-    text = " ".join([row.get("title", ""), row.get("content", "")])
+    title = row.get("extracted_title") or row.get("title", "")
+    text = " ".join([title, row.get("content", ""), row.get("extracted_text", "")])
     claims = []
     path = (urlsplit(row.get("url", "")).path or "").lower().rstrip("/")
     # python.org/downloads/latest is a canonical official endpoint that resolves
     # directly to the current latest release page. Its version can be extracted
     # from the page title even when the search snippet omits the phrase "latest".
     if path == "/downloads/latest":
-        versions = _stable_version_mentions(text)
+        # Prefer the page title and search snippet: the resolved release page
+        # may mention older versions in its body or changelog.
+        primary_text = " ".join([title, row.get("content", "")])
+        versions = _stable_version_mentions(primary_text)
+        if not versions and row.get("extracted_text"):
+            versions = _stable_version_mentions(row.get("extracted_text", ""))
         if versions:
             return [max(versions, key=_version_key)]
     # Split independent snippets/sentences so a maintenance release mentioned
@@ -244,7 +250,11 @@ def prepare_results(query: str, raw_results: list, max_results: int = 8,
         row["source_type"] = classify_source(normalized_url)
         row["relevance_score"] = round(relevance_score(query, row), 3)
         row["official_release_index"] = is_official_release_index(row)
-        source_text = " ".join([row.get("title", ""), row.get("content", "")])
+        source_text = " ".join([
+            row.get("extracted_title") or row.get("title", ""),
+            row.get("content", ""),
+            row.get("extracted_text", ""),
+        ])
         row["version_mentions"] = sorted(set(VERSION_RE.findall(source_text)), key=_version_key)
         row["latest_stable_claims"] = _latest_claims(row)
         row["company_case_signal"] = (
@@ -273,6 +283,7 @@ def assess_results(results: list, freshness_required: bool = False,
             "requires_company_official": requires_company_official,
             "version_mentions": [], "version_conflict": False,
             "unresolved_version_conflict": False, "official_index_versions": [],
+            "version_query": version_query,
         }
 
     usable = [row for row in results if row.get("relevance_score", 0) >= 0.08]
@@ -341,6 +352,7 @@ def assess_results(results: list, freshness_required: bool = False,
         "version_conflict": version_conflict,
         "unresolved_version_conflict": unresolved_version_conflict,
         "official_index_versions": latest_claims,
+        "version_query": version_query,
     }
 
 
