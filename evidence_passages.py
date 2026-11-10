@@ -209,8 +209,14 @@ def select_relevant_passages(
 
     if semantic_enabled:
         try:
-            return _select_semantic_passages(
+            semantic_passages = _select_semantic_passages(
                 question, segments, max_passages, max_chars, embedder=embedder
+            )
+            if semantic_passages:
+                return semantic_passages
+            return _select_lexical_passages(
+                question, segments, max_passages, max_chars,
+                fallback_reason="임베딩 유사도 임계값을 넘는 구절이 없어 키워드 검색으로 전환했습니다.",
             )
         except (requests.RequestException, ValueError, TypeError, KeyError) as exc:
             return _select_lexical_passages(
