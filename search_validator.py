@@ -108,17 +108,20 @@ def classify_source(url: str) -> str:
 
 def is_official_release_index(result: dict) -> bool:
     """Heuristic for official version/download overview pages, not individual release pages."""
-    url = result.get("final_url") or result.get("url", "")
-    host = (urlsplit(url).hostname or "").lower()
-    path = (urlsplit(url).path or "/").lower().rstrip("/") or "/"
-    if not any(_host_matches(host, domain) for domain in OFFICIAL_DOMAINS):
-        return False
+    urls = [result.get("url", ""), result.get("final_url", "")]
     exact_index_paths = {"/downloads", "/downloads/latest", "/download/releases", "/doc/versions", "/releases"}
     index_subtrees = {"/downloads/source", "/downloads/windows"}
-    return (
-        path in exact_index_paths
-        or any(path == candidate or path.startswith(candidate + "/") for candidate in index_subtrees)
-    )
+    for url in urls:
+        host = (urlsplit(url).hostname or "").lower()
+        path = (urlsplit(url).path or "/").lower().rstrip("/") or "/"
+        if not any(_host_matches(host, domain) for domain in OFFICIAL_DOMAINS):
+            continue
+        if path in exact_index_paths or any(
+            path == candidate or path.startswith(candidate + "/")
+            for candidate in index_subtrees
+        ):
+            return True
+    return False
 
 
 def _stable_version_mentions(text: str) -> list[str]:
