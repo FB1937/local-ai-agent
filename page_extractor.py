@@ -134,13 +134,13 @@ def _pypdf_extract(data: bytes, url: str) -> tuple[str | None, str | None, int]:
         page_text = (page.extract_text() or "").strip()
         if page_text:
             page_text = page_text[:remaining]
-            chunks.append(f"[PDF 페이지 {index + 1}]\\n{page_text}")
+            chunks.append(f"[PDF 페이지 {index + 1}]\n{page_text}")
             total_chars += len(page_text)
 
     metadata = reader.metadata
     raw_title = getattr(metadata, "title", None) if metadata else None
     title = raw_title.strip() if isinstance(raw_title, str) and raw_title.strip() else None
-    text = "\\n\\n".join(chunks).strip()
+    text = "\n\n".join(chunks).strip()
     return title, text or None, page_count
 
 
@@ -167,6 +167,8 @@ def extract_official_pages(
     pdf_extractor = pdf_extractor or _pypdf_extract
     enriched = []
     extracted_count = 0
+    html_extracted_count = 0
+    pdf_extracted_count = 0
     attempted = 0
     errors = []
 
@@ -226,6 +228,8 @@ def extract_official_pages(
                 item["extracted_page_count"] = min(page_count, MAX_PDF_PAGES)
                 item["pdf_page_limit_reached"] = page_count > MAX_PDF_PAGES
                 item["extraction_engine"] = "pypdf"
+                if text:
+                    pdf_extracted_count += 1
             else:
                 html, final_url = fetcher(item.get("url", ""), timeout=timeout)
                 if classify_source(final_url) not in {"official", "company_official"}:
@@ -233,6 +237,8 @@ def extract_official_pages(
                 title, text = extractor(html, final_url)
                 item["document_type"] = "html"
                 item["extraction_engine"] = "trafilatura"
+                if text:
+                    html_extracted_count += 1
 
             item["final_url"] = final_url
             item["extracted_title"] = title
@@ -253,6 +259,8 @@ def extract_official_pages(
     return {
         "results": enriched,
         "extracted_count": extracted_count,
+        "html_extracted_count": html_extracted_count,
+        "pdf_extracted_count": pdf_extracted_count,
         "attempted_count": attempted,
         "errors": errors,
     }
