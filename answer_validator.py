@@ -98,21 +98,25 @@ def _check_claims(answer: str, sources: list[dict], assessment: dict,
                     if expected[0] in (source.get("latest_stable_claims") or [])
                     and source.get("official_release_index")
                 ]
-                if not matching_sources or not citation_ids:
+                matching_cited_sources = [
+                    source for source in matching_sources
+                    if str(source.get("source_id")) in citation_ids
+                ]
+                if not matching_cited_sources:
                     checks.append(ClaimEvidenceCheck(
                         claim_type="latest_version",
                         claim=sentence,
                         status="unsupported",
                         source_ids=citation_ids,
-                        reason="버전 값은 일치하지만 공식 릴리스 인덱스 출처 인용이 연결되지 않았습니다.",
+                        reason="버전 값은 일치하지만 해당 공식 릴리스 인덱스가 이 문장에 인용되지 않았습니다.",
                     ))
                 else:
                     checks.append(ClaimEvidenceCheck(
                         claim_type="latest_version",
                         claim=sentence,
                         status="supported",
-                        source_ids=citation_ids,
-                        reason="공식 릴리스 인덱스에서 추출한 버전과 답변의 버전이 일치합니다. 문장 전체의 의미적 검증은 아닙니다.",
+                        source_ids=[source["source_id"] for source in matching_cited_sources],
+                        reason="인용된 공식 릴리스 인덱스에서 추출한 버전과 답변의 버전이 일치합니다. 문장 전체의 의미적 검증은 아닙니다.",
                     ))
 
     # Percentages are exact-match checked against retrieved source text.
@@ -166,14 +170,20 @@ def _check_claims(answer: str, sources: list[dict], assessment: dict,
                         reason="인용한 출처 본문 중 하나 이상에 동일한 수치가 있습니다. 수치가 설명하는 대상·맥락의 의미적 검증은 아닙니다.",
                     ))
 
-        if GARTNER_RE.search(sentence) and not GARTNER_RE.search(source_text):
-            checks.append(ClaimEvidenceCheck(
-                claim_type="named_source",
-                claim=sentence,
-                status="unsupported",
-                source_ids=CITATION_RE.findall(sentence),
-                reason="답변은 Gartner를 언급하지만 검색 자료에서 Gartner 원문 또는 언급을 확인하지 못했습니다.",
-            ))
+        if GARTNER_RE.search(sentence):
+            citation_ids = CITATION_RE.findall(sentence)
+            cited_text = " ".join(
+                _source_text(source_by_id[citation_id])
+                for citation_id in citation_ids if citation_id in source_by_id
+            )
+            if not GARTNER_RE.search(cited_text):
+                checks.append(ClaimEvidenceCheck(
+                    claim_type="named_source",
+                    claim=sentence,
+                    status="unsupported",
+                    source_ids=citation_ids,
+                    reason="답변은 Gartner를 언급하지만 해당 문장에 인용된 출처에서 Gartner를 확인하지 못했습니다.",
+                ))
 
     # Deployment language is treated conservatively. A search snippet signal is
     # only a candidate; extracted first-party text still requires human review.
