@@ -153,6 +153,7 @@ def _extract_response(body, elapsed):
         "eval_count": eval_count,
         "eval_duration_seconds": (eval_duration / 1_000_000_000) if isinstance(eval_duration, (int, float)) else None,
         "prompt_eval_count": body.get("prompt_eval_count"),
+        "thinking_token_count": body.get("thinking_eval_count"),
         "total_duration_seconds": (body.get("total_duration") / 1_000_000_000)
             if isinstance(body.get("total_duration"), (int, float)) else None,
         "request_seconds": elapsed,
@@ -180,7 +181,10 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
     retry_limit = max(0, min(int(max_retries), 1))
 
     for attempt_number in range(retry_limit + 1):
-        num_predict = OLLAMA_NUM_PREDICT * (2 if attempt_number else 1)
+        # A retry reduces the answer scope and disables thinking instead of
+        # blindly doubling the token budget. This makes the retry bounded and
+        # tests whether reasoning overhead, rather than answer length, caused truncation.
+        num_predict = OLLAMA_NUM_PREDICT
         payload = {
             "model": OLLAMA_MODEL,
             "messages": [
@@ -242,6 +246,10 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
             "content_characters": current.get("content_characters", len(current["answer"])),
             "thinking_characters": current.get("thinking_characters", 0),
             "eval_count": current.get("eval_count"),
+            "prompt_eval_count": current.get("prompt_eval_count"),
+            "thinking_token_count": current.get("thinking_token_count"),
+            "eval_duration_seconds": current.get("eval_duration_seconds"),
+            "total_duration_seconds": current.get("total_duration_seconds"),
             "done": current["done"],
             "done_reason": current["done_reason"],
             "num_predict": num_predict,
@@ -265,8 +273,8 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
             user_prompt += (
                 "\n\n이전 생성이 비어 있거나 출력 제한에 도달했다. "
                 "이번에는 추론 과정이나 설명 계획을 출력하지 말고 최종 답변만 작성하라. "
-                "답변은 500 토큰 이내로 제한하고, 문장을 완결한 뒤 끝내라. "
-                "HYBRID라면 개념 1단락, 검색으로 확인된 사실 1단락, 확인되지 않은 사항 1단락만 작성하라. "
+                "답변 범위를 축소해 3개 이하의 짧은 단락으로 작성하고, 문장을 완결한 뒤 끝내라. "
+                "HYBRID라면 일반 개념, 검색으로 확인된 사실, 확인 한계를 구분해 각각 짧게 작성하라. "
                 "검색 근거가 약하면 최신 동향을 추정하거나 업계 전반으로 일반화하지 말라."
             )
 
@@ -283,13 +291,15 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
 
     return {
         "answer": answer,
-        "ok": bool(answer),
+        "ok": bool(answer) and not incomplete,
         "error": error,
         "attempts": attempts,
         "retry_count": max(0, len(attempts) - 1),
         "done": (best or {}).get("done"),
         "done_reason": done_reason,
         "eval_count": (best or {}).get("eval_count"),
+        "prompt_eval_count": (best or {}).get("prompt_eval_count"),
+        "thinking_token_count": (best or {}).get("thinking_token_count"),
         "content_characters": (best or {}).get("content_characters", len(answer)),
         "thinking_characters": (best or {}).get("thinking_characters", 0),
         "eval_duration_seconds": (best or {}).get("eval_duration_seconds"),
