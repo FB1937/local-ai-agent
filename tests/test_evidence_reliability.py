@@ -251,6 +251,72 @@ class ClaimEvidenceValidationTests(unittest.TestCase):
         self.assertEqual(len(result["evidence_contract_errors"]), 1)
         self.assertFalse(result["validation"]["valid"])
 
+    def test_named_source_must_appear_in_the_cited_source_not_just_any_result(self):
+        sources = [
+            {
+                "source_id": "S1",
+                "url": "https://gartner.example/report",
+                "title": "Gartner report",
+                "content": "Gartner discusses retrieval-augmented generation.",
+                "source_type": "other",
+            },
+            {
+                "source_id": "S2",
+                "url": "https://medium.example/post",
+                "title": "Personal article",
+                "content": "A personal discussion of RAG.",
+                "source_type": "other",
+            },
+        ]
+        result = validate_answer(
+            "Gartner는 RAG 도입을 전망했습니다. [S2]",
+            sources,
+            search_assessment={"sufficient": True},
+            route="SEARCH",
+        )
+        self.assertFalse(result["valid"])
+        self.assertTrue(any(
+            check["claim_type"] == "named_source"
+            and check["status"] == "unsupported"
+            for check in result["claim_checks"]
+        ))
+
+    def test_latest_version_must_cite_the_official_release_index(self):
+        sources = [
+            {
+                "source_id": "S1",
+                "url": "https://www.python.org/downloads/latest",
+                "title": "Python Release Python 3.15.2",
+                "content": "Python 3.15.2 is the latest stable release.",
+                "source_type": "official",
+                "official_release_index": True,
+                "latest_stable_claims": ["3.15.2"],
+            },
+            {
+                "source_id": "S2",
+                "url": "https://medium.example/python",
+                "title": "Python version commentary",
+                "content": "Python version discussion.",
+                "source_type": "other",
+            },
+        ]
+        result = validate_answer(
+            "Python 최신 안정 버전은 3.15.2입니다. [S2]",
+            sources,
+            search_assessment={
+                "sufficient": True,
+                "version_query": True,
+                "latest_stable_claims": ["3.15.2"],
+            },
+            route="SEARCH",
+        )
+        self.assertFalse(result["valid"])
+        self.assertTrue(any(
+            check["claim_type"] == "latest_version"
+            and check["status"] == "unsupported"
+            for check in result["claim_checks"]
+        ))
+
 
 if __name__ == "__main__":
     unittest.main()
