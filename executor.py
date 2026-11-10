@@ -52,9 +52,9 @@ def execute_plan(question: str, plan: dict, search_fn=None,
             assessment = outcome.get("assessment", {})
 
         tool_calls = ["searxng"]
-        if extraction.get("html_extracted_count", 0):
+        if extraction.get("html_attempted_count", 0):
             tool_calls.append("trafilatura")
-        if extraction.get("pdf_extracted_count", 0):
+        if extraction.get("pdf_attempted_count", 0):
             tool_calls.append("pypdf")
 
         return {
