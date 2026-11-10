@@ -18,6 +18,9 @@ except ValueError:
     OLLAMA_NUM_PREDICT = 2048
 OLLAMA_TIMEOUT = max(30, int(os.getenv("OLLAMA_TIMEOUT", "300")))
 MAX_EMPTY_RETRIES = 1
+OLLAMA_SEARCH_THINKING = os.getenv("OLLAMA_SEARCH_THINKING", "0").strip().lower() in {
+    "1", "true", "yes", "on",
+}
 
 
 def _format_search_context(search_results):
@@ -199,11 +202,15 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
                 "num_predict": num_predict,
             },
         }
-        # Simple DIRECT explanations do not need an extended reasoning trace.
-        # Disable thinking on the first attempt to avoid spending the answer
-        # budget on hidden reasoning. SEARCH/HYBRID retain model-default thinking
-        # once; all retries disable it to prioritize a complete final answer.
-        if route == "DIRECT" or attempt_number > 0:
+        # DIRECT explanations and the default SEARCH/HYBRID path disable
+        # extended thinking so the output budget is spent on the user-facing
+        # answer. Enable first-pass SEARCH/HYBRID thinking only by explicit opt-in.
+        thinking_enabled = (
+            route in {"SEARCH", "HYBRID"}
+            and attempt_number == 0
+            and OLLAMA_SEARCH_THINKING
+        )
+        if not thinking_enabled:
             payload["think"] = False
         started = time.perf_counter()
         try:
@@ -255,6 +262,7 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
             "done": current["done"],
             "done_reason": current["done_reason"],
             "num_predict": num_predict,
+            "thinking_enabled": thinking_enabled,
             "request_seconds": current.get("request_seconds"),
         })
         is_empty = not current["answer"]
