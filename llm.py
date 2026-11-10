@@ -8,6 +8,7 @@ import time
 
 import requests
 from dotenv import load_dotenv
+from evidence_passages import select_relevant_passages
 
 load_dotenv()
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
@@ -23,23 +24,32 @@ OLLAMA_SEARCH_THINKING = os.getenv("OLLAMA_SEARCH_THINKING", "0").strip().lower(
 }
 
 
-def _format_search_context(search_results):
+def _format_search_context(search_results, question=""):
     blocks = []
     for index, result in enumerate(search_results or [], 1):
         source_id = result.get("source_id") or f"S{index}"
-        blocks.append(
-            f"[{source_id}]\n"
-            f"제목: {result.get('title', '')}\n"
-            f"URL: {result.get('url', '')}\n"
-            f"출처 유형: {result.get('source_type', 'unknown')}\n"
-            f"게시일: {result.get('published') or '확인되지 않음'}\n"
-            f"공식 릴리스 목록 후보: {'예' if result.get('official_release_index') else '아니오'}\n"
-            f"검색 요약: {result.get('content', '')}\n"
-            f"원문 추출 상태: {result.get('extraction_status', 'not_attempted')}\n"
-            f"원문 제목: {result.get('extracted_title') or '추출되지 않음'}\n"
-            f"원문 내용: {(result.get('extracted_text') or '')[:8000]}"
+        passages = select_relevant_passages(
+            question, result.get("extracted_text") or ""
         )
-    return "\n\n".join(blocks)
+        passage_text = "\\n".join(
+            f"- {passage['text']} (관련도 {passage['score']}, 일치 용어: "
+            f"{', '.join(passage['matched_terms'])})"
+            for passage in passages
+        ) or "질문과 어휘상 일치하는 본문 구절을 찾지 못했습니다."
+        blocks.append(
+            f"[{source_id}]\\n"
+            f"제목: {result.get('title', '')}\\n"
+            f"URL: {result.get('url', '')}\\n"
+            f"출처 유형: {result.get('source_type', 'unknown')}\\n"
+            f"게시일: {result.get('published') or '확인되지 않음'}\\n"
+            f"공식 릴리스 목록 후보: {'예' if result.get('official_release_index') else '아니오'}\\n"
+            f"검색 요약: {result.get('content', '')}\\n"
+            f"원문 추출 상태: {result.get('extraction_status', 'not_attempted')}\\n"
+            f"원문 품질 신호: {(result.get('content_quality') or {}).get('status', 'not_assessed')}\\n"
+            f"원문 제목: {result.get('extracted_title') or '추출되지 않음'}\\n"
+            f"질문 관련 본문 구절: {passage_text}"
+        )
+    return "\\n\\n".join(blocks)
 
 
 def _build_prompts(question, context, route, search_assessment):
@@ -176,7 +186,7 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
     route = (route or "SEARCH").upper()
     if route not in {"DIRECT", "SEARCH", "HYBRID"}:
         route = "SEARCH"
-    context = _format_search_context(search_results)
+    context = _format_search_context(search_results, question=question)
     system_prompt, user_prompt = _build_prompts(
         question, context, route, search_assessment
     )
