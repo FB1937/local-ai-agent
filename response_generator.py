@@ -94,7 +94,9 @@ def generate_response(question: str, execution: dict, route: str,
         "generation": generation,
         "validation": validation,
         "semantic_verification": semantic_review,
-        "answer": answer,
+        # Never propagate an unsupported generated answer into conversation
+        # memory or downstream stages as if it were a trusted assistant turn.
+        "answer": "" if unsupported_claims else answer,
         "display_answer": display_answer,
         "evidence_contract_errors": evidence_contract_errors,
         "validated_source_count": len(results),
