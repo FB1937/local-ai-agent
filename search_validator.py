@@ -108,7 +108,7 @@ def classify_source(url: str) -> str:
 
 def is_official_release_index(result: dict) -> bool:
     """Heuristic for official version/download overview pages, not individual release pages."""
-    url = result.get("url", "")
+    url = result.get("final_url") or result.get("url", "")
     host = (urlsplit(url).hostname or "").lower()
     path = (urlsplit(url).path or "/").lower().rstrip("/") or "/"
     if not any(_host_matches(host, domain) for domain in OFFICIAL_DOMAINS):
@@ -148,19 +148,20 @@ def _latest_claims(row: dict) -> list[str]:
     title = row.get("extracted_title") or row.get("title", "")
     text = " ".join([title, row.get("content", ""), row.get("extracted_text", "")])
     claims = []
-    path = (urlsplit(row.get("url", "")).path or "").lower().rstrip("/")
-    # python.org/downloads/latest is a canonical official endpoint that resolves
-    # directly to the current latest release page. Its version can be extracted
-    # from the page title even when the search snippet omits the phrase "latest".
-    if path == "/downloads/latest":
-        # Prefer the page title and search snippet: the resolved release page
-        # may mention older versions in its body or changelog.
-        primary_text = " ".join([title, row.get("content", "")])
-        versions = _stable_version_mentions(primary_text)
-        if not versions and row.get("extracted_text"):
-            versions = _stable_version_mentions(row.get("extracted_text", ""))
-        if versions:
-            return [max(versions, key=_version_key)]
+    canonical_url = row.get("url", "")
+    path = (urlsplit(canonical_url).path or "").lower().rstrip("/")
+    final_path = (urlsplit(row.get("final_url", "")).path or "").lower().rstrip("/")
+    # The canonical /downloads/latest endpoint may redirect to a version-specific
+    # release page. Prefer a single version in the extracted page title; never
+    # select the numerically greatest version from a long changelog/body.
+    if path == "/downloads/latest" or final_path == "/downloads/latest":
+        title_versions = _stable_version_mentions(title)
+        if len(title_versions) == 1:
+            return title_versions
+        snippet_versions = _stable_version_mentions(row.get("content", ""))
+        if len(snippet_versions) == 1 and LATEST_STABLE_RE.search(row.get("content", "")):
+            return snippet_versions
+        return []
     # Split independent snippets/sentences so a maintenance release mentioned
     # nearby is not mistaken for the latest release.
     for segment in re.split(r"[;\n]+|(?<=[.!?])\s+", text):
