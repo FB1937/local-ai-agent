@@ -62,6 +62,7 @@ class ClaimEvidenceCheck(BaseModel):
 class ValidationReport(BaseModel):
     valid: bool
     generation_ok: bool
+    empty_answer: bool = False
     found_ids: list[str] = Field(default_factory=list)
     unknown_ids: list[str] = Field(default_factory=list)
     missing_url_ids: list[str] = Field(default_factory=list)
