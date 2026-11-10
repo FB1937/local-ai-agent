@@ -74,6 +74,15 @@ def main():
                     print(f"검색 오류: {attempt['error']}")
         assessment = execution.get("assessment", {})
         if decision["route"] in {"SEARCH", "HYBRID"}:
+            extraction = execution.get("page_extraction", {})
+            print(
+                "[원문 추출] "
+                f"시도 {extraction.get('attempted_count', 0)}개 / "
+                f"성공 {extraction.get('extracted_count', 0)}개"
+            )
+            if extraction.get("errors"):
+                for error in extraction["errors"]:
+                    print(f"  추출 오류: {error}")
             print(
                 "[근거 요약] "
                 f"관련 결과 {assessment.get('usable_count', 0)}개 / "
@@ -120,10 +129,17 @@ def main():
         if generation.get("eval_count") and generation.get("eval_duration_seconds"):
             speed = generation["eval_count"] / generation["eval_duration_seconds"]
             print(f"- 생성 속도: {speed:.2f} tokens/s")
-        print(f"- 인용/응답 구조 검사: {'통과' if validation['valid'] else '경고'}")
+        print(f"- 인용/핵심 주장 검사: {'통과' if validation['valid'] else '경고'}")
         if validation.get("evidence_warnings"):
             print(f"- 근거 범위 경고: {len(validation['evidence_warnings'])}건")
-        print("- 의미적 근거 검증: 미수행 (검색 요약 기반)")
+        claim_checks = validation.get("claim_checks", [])
+        if claim_checks:
+            for check in claim_checks:
+                print(
+                    f"  - {check.get('claim_type')}: {check.get('status')} / "
+                    f"{check.get('reason')}"
+                )
+        print("- 전체 문장의 의미적 근거 검증: 미수행")
 
 
 if __name__ == "__main__":
