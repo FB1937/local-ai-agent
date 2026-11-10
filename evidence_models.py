@@ -24,6 +24,13 @@ class EvidenceSource(BaseModel):
     extracted_text: str | None = None
     extraction_status: str = "not_attempted"
 
+    @field_validator("published", mode="before")
+    @classmethod
+    def normalize_published(cls, value):
+        if value is None or isinstance(value, str):
+            return value
+        return str(value)
+
     @field_validator("url")
     @classmethod
     def validate_http_url(cls, value: str) -> str:
