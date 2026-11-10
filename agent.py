@@ -90,13 +90,22 @@ class LocalAIAgent:
             generation_fn=self.generation_fn,
         )
         timings["response_generation"] = perf_counter() - started
+        generation_complete = (
+            response["generation"].get("ok", False)
+            and not response["generation"].get("incomplete", False)
+        )
         stages["response_generation"] = {
-            "status": "completed" if response["answer"] else "failed",
+            "status": (
+                "failed" if not response["answer"]
+                else "completed" if generation_complete
+                else "incomplete"
+            ),
             "validation": response["validation"],
             "generation": response["generation"],
         }
 
-        if response["answer"]:
+        # Do not carry truncated output into the next turn as trusted context.
+        if response["answer"] and generation_complete:
             self.context_manager.add_turn(question, response["answer"])
 
         return {
