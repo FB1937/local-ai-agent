@@ -140,29 +140,31 @@ def _check_claims(answer: str, sources: list[dict], assessment: dict,
                     source_ids=[],
                     reason="검색 자료에서 수치를 찾았지만 해당 주장에 출처 인용이 연결되지 않았습니다.",
                 ))
-            elif any(
-                citation_id not in source_by_id
-                or _percent_key(value) not in {
-                    _percent_key(match.group(1))
-                    for match in PERCENT_RE.finditer(_source_text(source_by_id[citation_id]))
-                }
-                for citation_id in citation_ids
-            ):
-                checks.append(ClaimEvidenceCheck(
-                    claim_type="statistic",
-                    claim=sentence,
-                    status="unsupported",
-                    source_ids=citation_ids,
-                    reason="인용한 출처에서 해당 수치를 확인하지 못했습니다.",
-                ))
             else:
-                checks.append(ClaimEvidenceCheck(
-                    claim_type="statistic",
-                    claim=sentence,
-                    status="supported",
-                    source_ids=citation_ids,
-                    reason="인용한 출처 본문에 동일한 수치가 있습니다. 수치가 설명하는 대상·맥락의 의미적 검증은 아닙니다.",
-                ))
+                matching_citations = [
+                    citation_id for citation_id in citation_ids
+                    if citation_id in source_by_id
+                    and _percent_key(value) in {
+                        _percent_key(match.group(1))
+                        for match in PERCENT_RE.finditer(_source_text(source_by_id[citation_id]))
+                    }
+                ]
+                if not matching_citations:
+                    checks.append(ClaimEvidenceCheck(
+                        claim_type="statistic",
+                        claim=sentence,
+                        status="unsupported",
+                        source_ids=citation_ids,
+                        reason="인용한 출처 중 해당 수치를 직접 포함하는 자료가 없습니다.",
+                    ))
+                else:
+                    checks.append(ClaimEvidenceCheck(
+                        claim_type="statistic",
+                        claim=sentence,
+                        status="supported",
+                        source_ids=matching_citations,
+                        reason="인용한 출처 본문 중 하나 이상에 동일한 수치가 있습니다. 수치가 설명하는 대상·맥락의 의미적 검증은 아닙니다.",
+                    ))
 
         if GARTNER_RE.search(sentence) and not GARTNER_RE.search(source_text):
             checks.append(ClaimEvidenceCheck(
