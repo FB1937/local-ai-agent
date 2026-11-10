@@ -69,7 +69,22 @@ def generate_response(question: str, execution: dict, route: str,
     if semantic_enabled and answer and route in {"SEARCH", "HYBRID"}:
         semantic_review = verify_cited_claims(answer, results)
 
-    display_answer = append_validation_notice(answer, validation)
+    unsupported_claims = [
+        check for check in validation.get("claim_checks", [])
+        if check.get("status") == "unsupported"
+    ]
+    if unsupported_claims:
+        reasons = "\\n".join(
+            "- " + check.get("claim_type", "claim") + ": "
+            + check.get("reason", "근거를 확인하지 못했습니다.")
+            for check in unsupported_claims
+        )
+        display_answer = (
+            "[답변 보류] 검색 근거와 충돌하거나 출처에서 확인되지 않은 핵심 주장이 있어 "
+            "생성된 답변을 그대로 제공하지 않습니다.\\n" + reasons
+        )
+    else:
+        display_answer = append_validation_notice(answer, validation)
     if not answer:
         display_answer = (
             "[답변 생성 실패] "
