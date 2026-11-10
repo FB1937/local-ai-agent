@@ -42,7 +42,7 @@ def select_relevant_passages(
     segments = []
     pending_page_marker = ""
     for segment in raw_segments:
-        if re.fullmatch(r"\\[PDF 페이지 \\d+\\]", segment):
+        if re.fullmatch(r"\[PDF 페이지 \d+\]", segment):
             pending_page_marker = segment
             continue
         if pending_page_marker:
