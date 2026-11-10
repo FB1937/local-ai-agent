@@ -317,6 +317,26 @@ class ClaimEvidenceValidationTests(unittest.TestCase):
             for check in result["claim_checks"]
         ))
 
+    def test_trailing_citation_after_period_stays_attached_to_claim(self):
+        sources = [{
+            "source_id": "S1",
+            "url": "https://example.org/report",
+            "title": "Survey",
+            "content": "The survey reports that 60% of respondents use retrieval.",
+            "source_type": "other",
+        }]
+        result = validate_answer(
+            "조사 응답자의 60%가 검색 기술을 사용한다고 답했습니다. [S1]",
+            sources,
+            search_assessment={"sufficient": True},
+            route="SEARCH",
+        )
+        self.assertTrue(result["valid"])
+        self.assertTrue(any(
+            check["claim_type"] == "statistic" and check["status"] == "supported"
+            for check in result["claim_checks"]
+        ))
+
 
 if __name__ == "__main__":
     unittest.main()
