@@ -207,6 +207,50 @@ class ClaimEvidenceValidationTests(unittest.TestCase):
         self.assertIn("확인 한계", system_prompt)
         self.assertIn("한 번의 답변", user_prompt)
 
+    def test_extracted_release_text_updates_latest_version_assessment(self):
+        from search_validator import prepare_results, assess_results
+
+        rows = prepare_results(
+            "Python latest stable release",
+            [{
+                "title": "Python downloads",
+                "url": "https://www.python.org/downloads/latest",
+                "content": "Official Python downloads.",
+                "extracted_title": "Python Release Python 3.15.2",
+                "extracted_text": "Python 3.15.2 is the latest stable release.",
+            }],
+        )
+        assessment = assess_results(
+            rows, freshness_required=True, requires_official=True, version_query=True
+        )
+        self.assertEqual(assessment["latest_stable_claims"], ["3.15.2"])
+        self.assertTrue(assessment["version_query"])
+
+    def test_response_generator_excludes_sources_that_break_the_contract(self):
+        from response_generator import generate_response
+
+        received = {}
+
+        def fake_generation(question, results, route, search_assessment):
+            received["results"] = results
+            return {"answer": "검색 결과를 확인했습니다.", "ok": True, "incomplete": False}
+
+        result = generate_response(
+            "조사해 줘",
+            {
+                "results": [
+                    {"source_id": "S1", "url": "https://example.org/valid", "title": "Valid"},
+                    {"source_id": "bad-id", "url": "file:///etc/passwd", "title": "Invalid"},
+                ],
+                "assessment": {"sufficient": True},
+            },
+            "SEARCH",
+            generation_fn=fake_generation,
+        )
+        self.assertEqual([row["source_id"] for row in received["results"]], ["S1"])
+        self.assertEqual(len(result["evidence_contract_errors"]), 1)
+        self.assertFalse(result["validation"]["valid"])
+
 
 if __name__ == "__main__":
     unittest.main()
