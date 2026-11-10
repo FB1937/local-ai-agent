@@ -337,6 +337,32 @@ class ClaimEvidenceValidationTests(unittest.TestCase):
             for check in result["claim_checks"]
         ))
 
+    def test_matching_latest_version_and_official_citation_pass(self):
+        sources = [{
+            "source_id": "S1",
+            "url": "https://www.python.org/downloads/latest",
+            "title": "Python Release Python 3.15.2",
+            "content": "Python 3.15.2 is the latest stable release.",
+            "source_type": "official",
+            "official_release_index": True,
+            "latest_stable_claims": ["3.15.2"],
+        }]
+        result = validate_answer(
+            "Python 최신 안정 버전은 3.15.2입니다. [S1]",
+            sources,
+            search_assessment={
+                "sufficient": True,
+                "version_query": True,
+                "latest_stable_claims": ["3.15.2"],
+            },
+            route="SEARCH",
+        )
+        self.assertTrue(result["valid"])
+        self.assertTrue(any(
+            check["claim_type"] == "latest_version" and check["status"] == "supported"
+            for check in result["claim_checks"]
+        ))
+
 
 if __name__ == "__main__":
     unittest.main()
