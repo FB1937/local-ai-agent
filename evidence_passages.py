@@ -34,7 +34,21 @@ def select_relevant_passages(
     if not query_tokens or not text:
         return []
 
-    segments = [segment.strip() for segment in SENTENCE_SPLIT_RE.split(text) if segment.strip()]
+    raw_segments = [
+        segment.strip()
+        for segment in SENTENCE_SPLIT_RE.split(text)
+        if segment.strip()
+    ]
+    segments = []
+    pending_page_marker = ""
+    for segment in raw_segments:
+        if re.fullmatch(r"\\[PDF 페이지 \\d+\\]", segment):
+            pending_page_marker = segment
+            continue
+        if pending_page_marker:
+            segment = f"{pending_page_marker} {segment}"
+            pending_page_marker = ""
+        segments.append(segment)
     candidates = []
     for index, segment in enumerate(segments):
         segment_tokens = _tokens(segment)
