@@ -199,7 +199,12 @@ def _tokens(text: str) -> set[str]:
 
 def relevance_score(query: str, result: dict) -> float:
     query_tokens = _tokens(query)
-    document_tokens = _tokens(" ".join([result.get("title", ""), result.get("content", "")]))
+    document_tokens = _tokens(" ".join([
+        result.get("title", ""),
+        result.get("content", ""),
+        (result.get("extracted_title") or ""),
+        (result.get("extracted_text") or "")[:8000],
+    ]))
     if not query_tokens or not document_tokens:
         return 0.0
     overlap = len(query_tokens & document_tokens) / len(query_tokens)
@@ -235,7 +240,14 @@ def _source_rank(row: dict, now: datetime | None = None) -> tuple:
         reference = (now or datetime.now(timezone.utc)).timestamp()
         age_days = max(0.0, (reference - published) / 86400)
         freshness_bonus = 0.08 * max(0.0, 1.0 - age_days / 365)
-    row["ranking_score"] = round(row.get("relevance_score", 0.0) + trust_bonus + freshness_bonus, 3)
+    quality_status = (row.get("content_quality") or {}).get("status")
+    quality_bonus = 0.03 if quality_status == "usable" else (
+        -0.03 if quality_status == "low_signal" else 0.0
+    )
+    row["ranking_score"] = round(
+        row.get("relevance_score", 0.0) + trust_bonus + freshness_bonus + quality_bonus,
+        3,
+    )
     return (row["ranking_score"], row.get("relevance_score", 0.0))
 
 
