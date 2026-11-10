@@ -32,10 +32,14 @@ def _format_search_context(search_results, question=""):
             question, result.get("extracted_text") or ""
         )
         passage_text = "\n".join(
-            f"- {passage['text']} (관련도 {passage['score']}, 일치 용어: "
-            f"{', '.join(passage['matched_terms'])})"
+            f"- {passage['text']} (검색 방식: {passage.get('retrieval_method', 'lexical_fallback')}, "
+            f"점수: {passage['score']}, 일치 용어: {', '.join(passage['matched_terms'])})"
+            + (
+                f" [임베딩 대체 사유: {passage['fallback_reason']}]"
+                if passage.get("fallback_reason") else ""
+            )
             for passage in passages
-        ) or "질문과 어휘상 일치하는 본문 구절을 찾지 못했습니다."
+        ) or "질문과 관련된 본문 구절을 찾지 못했습니다."
         blocks.append(
             f"[{source_id}]\n"
             f"제목: {result.get('title', '')}\n"
