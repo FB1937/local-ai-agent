@@ -10,7 +10,7 @@ import re
 import requests
 
 CITATION_RE = re.compile(r"\[(S\d+)\]")
-SENTENCE_RE = re.compile(r"(?<=[.!?。！？])\s+|\n+")
+SENTENCE_RE = re.compile(r"(?<=[!?。！？])\s+|(?<!\d)\.(?!\s*\[S\d+\])\s+|\n+")
 
 
 def _claims_with_citations(answer: str) -> list[tuple[str, list[str]]]:
