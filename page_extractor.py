@@ -48,19 +48,35 @@ def _download_html(url: str, timeout: int = 12) -> tuple[str, str]:
     for _ in range(4):
         if not _is_public_http_url(current_url):
             raise ValueError("차단된 URL 또는 공인 네트워크 주소가 아닙니다.")
-        response = requests.get(
-            current_url, timeout=timeout, headers=headers, allow_redirects=False
-        )
-        if response.status_code in REDIRECT_STATUSES:
-            location = response.headers.get("Location")
-            if not location:
-                raise ValueError("리디렉션 응답에 Location이 없습니다.")
-            current_url = urljoin(current_url, location)
-            continue
-        response.raise_for_status()
-        if len(response.content) > MAX_PAGE_BYTES:
-            raise ValueError("페이지 크기가 허용 한도를 초과했습니다.")
-        return response.text, current_url
+        with requests.get(
+            current_url,
+            timeout=timeout,
+            headers=headers,
+            allow_redirects=False,
+            stream=True,
+        ) as response:
+            if response.status_code in REDIRECT_STATUSES:
+                location = response.headers.get("Location")
+                if not location:
+                    raise ValueError("리디렉션 응답에 Location이 없습니다.")
+                current_url = urljoin(current_url, location)
+                continue
+            response.raise_for_status()
+            declared_size = response.headers.get("Content-Length")
+            if declared_size and int(declared_size) > MAX_PAGE_BYTES:
+                raise ValueError("페이지 크기가 허용 한도를 초과했습니다.")
+            chunks = []
+            total = 0
+            for chunk in response.iter_content(chunk_size=65536):
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > MAX_PAGE_BYTES:
+                    raise ValueError("페이지 크기가 허용 한도를 초과했습니다.")
+                chunks.append(chunk)
+            encoding = response.encoding or "utf-8"
+            html = b"".join(chunks).decode(encoding, errors="replace")
+            return html, current_url
     raise ValueError("리디렉션 횟수가 허용 한도를 초과했습니다.")
 
 
