@@ -122,6 +122,8 @@ def _ollama_embed(texts: list[str]) -> list[list[float]]:
 def _cosine_similarity(left: list[float], right: list[float]) -> float:
     if len(left) != len(right):
         raise ValueError("임베딩 벡터 차원이 서로 다릅니다.")
+    if not all(math.isfinite(value) for value in left + right):
+        raise ValueError("임베딩 벡터에 유한하지 않은 값이 포함되어 있습니다.")
     left_norm = math.sqrt(sum(value * value for value in left))
     right_norm = math.sqrt(sum(value * value for value in right))
     if not left_norm or not right_norm:
