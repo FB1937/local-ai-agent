@@ -8,7 +8,10 @@ import time
 
 import requests
 from dotenv import load_dotenv
-from evidence_passages import select_relevant_passages
+from evidence_passages import (
+    deduplicate_passages_across_sources,
+    select_relevant_passages,
+)
 
 load_dotenv()
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434").rstrip("/")
@@ -25,21 +28,44 @@ OLLAMA_SEARCH_THINKING = os.getenv("OLLAMA_SEARCH_THINKING", "0").strip().lower(
 
 
 def _format_search_context(search_results, question=""):
-    blocks = []
-    for index, result in enumerate(search_results or [], 1):
+    results = list(search_results or [])
+    passage_groups = []
+    for index, result in enumerate(results, 1):
         source_id = result.get("source_id") or f"S{index}"
-        passages = select_relevant_passages(
-            question, result.get("extracted_text") or ""
-        )
+        passage_groups.append({
+            "source_id": source_id,
+            "passages": select_relevant_passages(
+                question, result.get("extracted_text") or ""
+            ),
+        })
+
+    # Merge repeated passages across documents while preserving corroborating source IDs.
+    unique_passages = deduplicate_passages_across_sources(passage_groups)
+    blocks = []
+    for index, result in enumerate(results, 1):
+        source_id = result.get("source_id") or f"S{index}"
+        passages = [
+            passage for passage in unique_passages
+            if passage.get("source_id") == source_id
+        ]
         passage_text = "\n".join(
-            f"- {passage['text']} (검색 방식: {passage.get('retrieval_method', 'lexical_fallback')}, "
+            f"- {passage['text']} (근거 출처: {', '.join(f'[{item}]' for item in passage['source_ids'])}; "
+            f"검색 방식: {passage.get('retrieval_method', 'lexical_fallback')}, "
             f"점수: {passage['score']}, 일치 용어: {', '.join(passage['matched_terms'])})"
             + (
                 f" [임베딩 대체 사유: {passage['fallback_reason']}]"
                 if passage.get("fallback_reason") else ""
             )
             for passage in passages
-        ) or "질문과 관련된 본문 구절을 찾지 못했습니다."
+        ) or (
+            "다른 출처의 유사 구절과 중복되어 통합 표시했습니다."
+            if any(
+                source_id in passage.get("source_ids", [])
+                and passage.get("source_id") != source_id
+                for passage in unique_passages
+            )
+            else "질문과 관련된 본문 구절을 찾지 못했습니다."
+        )
         blocks.append(
             f"[{source_id}]\n"
             f"제목: {result.get('title', '')}\n"
