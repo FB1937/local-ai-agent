@@ -68,10 +68,14 @@ def _select_lexical_passages(
             "matched_terms": sorted(overlap),
         })
 
-    candidates.sort(key=lambda item: (-item["score"], item["index"]))
+    candidates.sort(
+        key=lambda item: (-item["score"], -len(item["matched_terms"]), item["index"])
+    )
     selected = []
     used_chars = 0
     for item in candidates:
+        if any(_token_jaccard(previous["text"], item["text"]) >= 0.88 for previous in selected):
+            continue
         remaining = max_chars - used_chars
         if remaining <= 0 or len(selected) >= max(0, max_passages):
             break
@@ -129,6 +133,40 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
     if not left_norm or not right_norm:
         return 0.0
     return sum(a * b for a, b in zip(left, right)) / (left_norm * right_norm)
+
+
+
+def _token_jaccard(left: str, right: str) -> float:
+    left_tokens = _tokens(left)
+    right_tokens = _tokens(right)
+    if not left_tokens or not right_tokens:
+        left_normalized = " ".join((left or "").casefold().split())
+        right_normalized = " ".join((right or "").casefold().split())
+        return 1.0 if left_normalized and left_normalized == right_normalized else 0.0
+    return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
+
+
+def deduplicate_passages_across_sources(source_passages: list[dict]) -> list[dict]:
+    """Merge near-identical selected passages while retaining all supporting source IDs."""
+    unique = []
+    for group in source_passages or []:
+        source_id = group.get("source_id")
+        for passage in group.get("passages", []):
+            text = passage.get("text", "")
+            duplicate = next(
+                (item for item in unique
+                 if _token_jaccard(item.get("text", ""), text) >= 0.88),
+                None,
+            )
+            if duplicate is not None:
+                if source_id and source_id not in duplicate["source_ids"]:
+                    duplicate["source_ids"].append(source_id)
+                continue
+            item = dict(passage)
+            item["source_id"] = source_id
+            item["source_ids"] = [source_id] if source_id else []
+            unique.append(item)
+    return unique
 
 
 def _select_semantic_passages(
