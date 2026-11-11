@@ -102,6 +102,60 @@ class OfficialPageExtractionTests(unittest.TestCase):
             ["extracted", "skipped_non_official", "skipped_page_limit"],
         )
 
+
+    def test_extraction_prioritizes_release_index_and_stable_notes_over_prereleases(self):
+        rows = [
+            {
+                "source_id": "S1",
+                "url": "https://www.python.org/downloads/release/python-3150rc2/",
+                "title": "Python 3.15.0rc2",
+                "source_type": "official",
+            },
+            {
+                "source_id": "S2",
+                "url": "https://www.python.org/downloads/latest/",
+                "title": "Python Downloads",
+                "source_type": "official",
+            },
+            {
+                "source_id": "S3",
+                "url": "https://docs.python.org/3.15/whatsnew/3.15.html",
+                "title": "What's New in Python 3.15",
+                "source_type": "official",
+            },
+            {
+                "source_id": "S4",
+                "url": "https://www.python.org/downloads/release/python-3150/",
+                "title": "Python 3.15.0",
+                "source_type": "official",
+            },
+        ]
+        calls = []
+
+        def fetcher(url, timeout):
+            calls.append(url)
+            return "<html>fixture</html>", url
+
+        result = extract_official_pages(
+            rows,
+            max_pages=3,
+            fetcher=fetcher,
+            extractor=lambda html, url: (
+                "Official release material",
+                "Official Python release material with enough detail for extraction tests.",
+            ),
+        )
+        self.assertEqual(calls, [
+            "https://www.python.org/downloads/latest/",
+            "https://docs.python.org/3.15/whatsnew/3.15.html",
+            "https://www.python.org/downloads/release/python-3150/",
+        ])
+        self.assertEqual([row["source_id"] for row in result["results"]], ["S1", "S2", "S3", "S4"])
+        self.assertEqual(
+            [row["extraction_status"] for row in result["results"]],
+            ["skipped_page_limit", "extracted", "extracted", "extracted"],
+        )
+
     def test_rejects_redirect_from_official_to_non_official_domain(self):
         result = extract_official_pages(
             [{
