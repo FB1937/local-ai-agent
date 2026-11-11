@@ -11,6 +11,7 @@ import ipaddress
 import socket
 from urllib.parse import urljoin, urlsplit
 
+import re
 import requests
 
 from search_validator import classify_source, is_official_release_index
@@ -236,7 +237,7 @@ def extract_official_pages(
         if attempted >= max(0, max_pages):
             item.setdefault("extraction_status", "skipped_page_limit")
             item.setdefault("extracted_char_count", 0)
-            enriched.append(item)
+            enriched.append((original_index, item))
             continue
 
         is_pdf = _is_pdf_result(item)
@@ -245,14 +246,14 @@ def extract_official_pages(
             item["extraction_error"] = "pypdf가 설치되지 않았습니다. requirements.txt를 설치하세요."
             item["extracted_char_count"] = 0
             errors.append(f"{item.get('source_id', '?')}: {item['extraction_error']}")
-            enriched.append(item)
+            enriched.append((original_index, item))
             continue
         if not is_pdf and not html_available:
             item["extraction_status"] = "unavailable"
             item["extraction_error"] = "Trafilatura가 설치되지 않았습니다. requirements.txt를 설치하세요."
             item["extracted_char_count"] = 0
             errors.append(f"{item.get('source_id', '?')}: {item['extraction_error']}")
-            enriched.append(item)
+            enriched.append((original_index, item))
             continue
 
         attempted += 1
@@ -308,7 +309,7 @@ def extract_official_pages(
                 "reason": item.get("extraction_error", "본문 추출이 수행되지 않았습니다."),
                 "is_factual_verification": False,
             }
-        enriched.append(item)
+        enriched.append((original_index, item))
 
     # Extraction order is an internal scheduling detail; preserve search order downstream.
     enriched = [item for _, item in sorted(enriched, key=lambda pair: pair[0])]
