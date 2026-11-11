@@ -13,7 +13,7 @@ from urllib.parse import urljoin, urlsplit
 
 import requests
 
-from search_validator import classify_source
+from search_validator import classify_source, is_official_release_index
 from content_quality import assess_extracted_content
 
 MAX_PAGE_BYTES = 1_500_000
@@ -152,6 +152,38 @@ def _is_pdf_result(row: dict) -> bool:
     return path.endswith(".pdf") or content_type in PDF_MIME_TYPES
 
 
+
+_RELEASE_VERSION_RE = re.compile(r"\b\d+\.\d+(?:\.\d+)?\b")
+_PRERELEASE_RE = re.compile(
+    r"(?:alpha|beta|pre[- ]?release|release[- ]?candidate|\d+(?:\.\d+){1,2}(?:a|b|rc)\d*|사전\s*릴리스|프리릴리스)",
+    re.I,
+)
+_RELEASE_NOTES_RE = re.compile(
+    r"(?:what.?s new|release notes?|changelog|변경 사항|릴리스 노트)",
+    re.I,
+)
+
+
+def _extraction_priority(row: dict, original_index: int) -> tuple:
+    """Choose high-value official pages before consuming the bounded extraction budget."""
+    source_type = row.get("source_type") or classify_source(row.get("url", ""))
+    if source_type not in {"official", "company_official"}:
+        return (9, original_index)
+    if is_official_release_index(row):
+        return (0, -float(row.get("relevance_score", 0.0)), original_index)
+
+    descriptor = " ".join(str(row.get(key) or "") for key in ("title", "url", "content"))
+    if _PRERELEASE_RE.search(descriptor):
+        category = 4
+    elif _RELEASE_NOTES_RE.search(descriptor):
+        category = 1
+    elif _RELEASE_VERSION_RE.search(descriptor):
+        category = 2
+    else:
+        category = 3
+    return (category, -float(row.get("relevance_score", 0.0)), original_index)
+
+
 def extract_official_pages(
     results: list[dict],
     max_pages: int = 3,
@@ -188,14 +220,18 @@ def extract_official_pages(
     except ImportError:
         pdf_available = False
 
-    for row in results or []:
+    ordered_results = sorted(
+        enumerate(results or []),
+        key=lambda pair: _extraction_priority(pair[1], pair[0]),
+    )
+    for original_index, row in ordered_results:
         item = dict(row)
         item["retrieved_at"] = datetime.now(timezone.utc).isoformat()
         source_type = item.get("source_type") or classify_source(item.get("url", ""))
         if source_type not in {"official", "company_official"}:
             item.setdefault("extraction_status", "skipped_non_official")
             item.setdefault("extracted_char_count", 0)
-            enriched.append(item)
+            enriched.append((original_index, item))
             continue
         if attempted >= max(0, max_pages):
             item.setdefault("extraction_status", "skipped_page_limit")
@@ -273,6 +309,9 @@ def extract_official_pages(
                 "is_factual_verification": False,
             }
         enriched.append(item)
+
+    # Extraction order is an internal scheduling detail; preserve search order downstream.
+    enriched = [item for _, item in sorted(enriched, key=lambda pair: pair[0])]
 
     status_counts = {}
     for item in enriched:
