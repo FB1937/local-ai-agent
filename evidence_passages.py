@@ -204,10 +204,18 @@ def _select_semantic_passages(
                 "matched_terms": sorted(_tokens(question) & _tokens(segment)),
             })
 
-    candidates.sort(key=lambda item: (-item["score"], item["index"]))
+    candidates.sort(
+        key=lambda item: (
+            -(item["score"] + min(0.03, 0.01 * len(item["matched_terms"]))),
+            -len(item["matched_terms"]),
+            item["index"],
+        )
+    )
     selected = []
     used_chars = 0
     for item in candidates:
+        if any(_token_jaccard(previous["text"], item["text"]) >= 0.88 for previous in selected):
+            continue
         remaining = max_chars - used_chars
         if remaining <= 0 or len(selected) >= max(0, max_passages):
             break
