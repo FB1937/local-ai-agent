@@ -218,16 +218,24 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
                 "num_predict": num_predict,
             },
         }
-        # DIRECT explanations and the default SEARCH/HYBRID path disable
-        # extended thinking so the output budget is spent on the user-facing
-        # answer. Enable first-pass SEARCH/HYBRID thinking only by explicit opt-in.
+        # HYBRID's first attempt preserves Ollama's model-level default.
+        # SEARCH can opt into that default with OLLAMA_SEARCH_THINKING; DIRECT
+        # and every retry explicitly disable thinking to protect answer budget.
+        preserve_model_default_thinking = (
+            route == "HYBRID" and attempt_number == 0
+        )
         thinking_enabled = (
-            route in {"SEARCH", "HYBRID"}
+            route == "SEARCH"
             and attempt_number == 0
             and OLLAMA_SEARCH_THINKING
         )
-        if not thinking_enabled:
-            payload["think"] = False
+        thinking_mode = (
+            "model_default" if preserve_model_default_thinking
+            else "enabled" if thinking_enabled
+            else "disabled"
+        )
+        if thinking_mode != "model_default":
+            payload["think"] = thinking_mode == "enabled"
         started = time.perf_counter()
         try:
             response = requests.post(
@@ -278,7 +286,10 @@ def generate_answer_result(question, search_results=None, route="SEARCH",
             "done": current["done"],
             "done_reason": current["done_reason"],
             "num_predict": num_predict,
-            "thinking_enabled": thinking_enabled,
+            "thinking_enabled": (
+                None if thinking_mode == "model_default" else thinking_enabled
+            ),
+            "thinking_mode": thinking_mode,
             "request_seconds": current.get("request_seconds"),
         })
         is_empty = not current["answer"]

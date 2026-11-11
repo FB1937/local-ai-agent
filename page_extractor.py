@@ -274,8 +274,14 @@ def extract_official_pages(
             }
         enriched.append(item)
 
+    status_counts = {}
+    for item in enriched:
+        status = item.get("extraction_status", "not_attempted")
+        status_counts[status] = status_counts.get(status, 0) + 1
+
     return {
         "results": enriched,
+        "status_counts": status_counts,
         "extracted_count": extracted_count,
         "html_extracted_count": html_extracted_count,
         "pdf_extracted_count": pdf_extracted_count,

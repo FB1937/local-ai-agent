@@ -62,6 +62,46 @@ class OfficialPageExtractionTests(unittest.TestCase):
         self.assertEqual(result["results"][0]["extraction_status"], "extracted")
         self.assertEqual(result["results"][1]["extraction_status"], "skipped_non_official")
 
+    def test_extraction_summary_counts_extracted_and_skipped_statuses(self):
+        result = extract_official_pages(
+            [
+                {
+                    "source_id": "S1",
+                    "url": "https://www.python.org/first",
+                    "source_type": "official",
+                },
+                {
+                    "source_id": "S2",
+                    "url": "https://example.com/article",
+                    "source_type": "other",
+                },
+                {
+                    "source_id": "S3",
+                    "url": "https://www.python.org/third",
+                    "source_type": "official",
+                },
+            ],
+            max_pages=1,
+            fetcher=lambda url, timeout: ("<html>fixture</html>", url),
+            extractor=lambda html, url: (
+                "Python Release",
+                "Python release information with enough extracted text for the test.",
+            ),
+        )
+
+        self.assertEqual(
+            result["status_counts"],
+            {
+                "extracted": 1,
+                "skipped_non_official": 1,
+                "skipped_page_limit": 1,
+            },
+        )
+        self.assertEqual(
+            [row["extraction_status"] for row in result["results"]],
+            ["extracted", "skipped_non_official", "skipped_page_limit"],
+        )
+
     def test_rejects_redirect_from_official_to_non_official_domain(self):
         result = extract_official_pages(
             [{

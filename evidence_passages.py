@@ -103,6 +103,8 @@ def _ollama_embed(texts: list[str]) -> list[list[float]]:
     )
     response.raise_for_status()
     payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("Ollama 임베딩 응답이 JSON 객체가 아닙니다.")
     vectors = payload.get("embeddings")
     if not isinstance(vectors, list) or len(vectors) != len(texts):
         raise ValueError("Ollama 임베딩 응답의 벡터 개수가 입력과 일치하지 않습니다.")
