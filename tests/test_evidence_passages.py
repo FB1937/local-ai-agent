@@ -4,7 +4,11 @@ import os
 
 import requests
 
-from evidence_passages import _ollama_embed, select_relevant_passages
+from evidence_passages import (
+    _ollama_embed,
+    deduplicate_passages_across_sources,
+    select_relevant_passages,
+)
 
 
 QUESTION = "Python 3.15 주요 변경 사항"
@@ -136,6 +140,36 @@ class SemanticPassageRetrievalTests(unittest.TestCase):
 
         self.assertLessEqual(len(result), 2)
         self.assertLessEqual(sum(len(item["text"]) for item in result), 130)
+
+
+    def test_semantic_selection_skips_near_duplicate_passages(self):
+        repeated = "Python 3.15 prepares binary wheels for the upcoming release candidate."
+        distinct = "Python 3.15 introduces improved parser diagnostics and clearer errors."
+        text = f"{repeated} {repeated} {distinct}"
+        vectors = [[1.0, 0.0], [0.99, 0.1], [0.98, 0.2], [0.97, 0.3]]
+        with patch.dict(os.environ, {"OLLAMA_EMBEDDING_MIN_SCORE": "0.5"}):
+            result = select_relevant_passages(
+                QUESTION, text, max_passages=3, semantic_enabled=True,
+                embedder=lambda texts: vectors,
+            )
+        self.assertEqual(len(result), 2)
+        self.assertEqual(len({item["text"] for item in result}), 2)
+
+    def test_cross_source_deduplication_preserves_all_source_ids(self):
+        repeated = "Python 3.15 prepares binary wheels for the upcoming release candidate."
+        distinct = "Python 3.15 introduces improved parser diagnostics and clearer errors."
+        result = deduplicate_passages_across_sources([
+            {"source_id": "S1", "passages": [
+                {"text": repeated, "score": 0.81, "matched_terms": []},
+            ]},
+            {"source_id": "S2", "passages": [
+                {"text": repeated, "score": 0.79, "matched_terms": []},
+                {"text": distinct, "score": 0.76, "matched_terms": []},
+            ]},
+        ])
+        self.assertEqual(len(result), 2)
+        repeated_result = next(item for item in result if item["text"] == repeated)
+        self.assertEqual(repeated_result["source_ids"], ["S1", "S2"])
 
     def test_disabled_semantic_retrieval_uses_lexical_without_embedding(self):
         def unexpected_embedder(_):
