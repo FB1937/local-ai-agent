@@ -1,4 +1,5 @@
 import unittest
+import requests
 
 from claim_analysis import analyze_claim_evidence, extract_cited_claims, retrieve_claim_evidence_passages
 
@@ -79,7 +80,7 @@ class ClaimSpecificRetrievalTests(unittest.TestCase):
 
     def test_semantic_failure_falls_back_to_lexical(self):
         def failing_embedder(_):
-            raise TimeoutError("embedding timeout")
+            raise requests.Timeout("embedding timeout")
         result = analyze_claim_evidence(
             "Python improves parser diagnostics and reports clearer syntax errors. [S1]",
             [source("S1", "https://example.org/one",
