@@ -81,6 +81,63 @@ class ClaimAnalysisResult(BaseModel):
     unmapped_source_ids: list[str] = Field(default_factory=list)
 
 
+def _split_answer_sentences(answer: str) -> list[str]:
+    """Split sentences while keeping citations attached to the preceding claim."""
+    text = answer or ""
+    sentences: list[str] = []
+    start = 0
+    index = 0
+
+    while index < len(text):
+        char = text[index]
+        if char in ".!?。！？":
+            # A dot between digits is a decimal point, not a sentence boundary.
+            if char == "." and index > 0 and index + 1 < len(text):
+                if text[index - 1].isdigit() and text[index + 1].isdigit():
+                    index += 1
+                    continue
+
+            cursor = index + 1
+            had_boundary_space = False
+            while cursor < len(text) and text[cursor].isspace() and text[cursor] != "\n":
+                had_boundary_space = True
+                cursor += 1
+
+            # Citations commonly follow punctuation: "Claim. [S1]".
+            while cursor < len(text):
+                match = _CITATION_RE.match(text, cursor)
+                if not match:
+                    break
+                cursor = match.end()
+                while cursor < len(text) and text[cursor].isspace() and text[cursor] != "\n":
+                    had_boundary_space = True
+                    cursor += 1
+
+            if cursor == len(text) or had_boundary_space:
+                sentence = text[start:cursor].strip()
+                if sentence:
+                    sentences.append(sentence)
+                start = cursor
+                index = cursor
+                continue
+
+        if char == "\n":
+            sentence = text[start:index].strip()
+            if sentence:
+                sentences.append(sentence)
+            while index < len(text) and text[index] == "\n":
+                index += 1
+            start = index
+            continue
+
+        index += 1
+
+    tail = text[start:].strip()
+    if tail:
+        sentences.append(tail)
+    return sentences
+
+
 def extract_cited_claims(answer: str) -> list[Claim]:
     """Split an answer into sentence-level claims and retain citation IDs.
 
@@ -88,14 +145,11 @@ def extract_cited_claims(answer: str) -> list[Claim]:
     claim decomposition. Uncited sentences are retained with no source IDs.
     """
     claims: list[Claim] = []
-    for sentence in _SENTENCE_SPLIT_RE.split(answer or ""):
-        text = sentence.strip()
-        if not text:
-            continue
-        source_ids = list(dict.fromkeys(_CITATION_RE.findall(text)))
+    for sentence in _split_answer_sentences(answer):
+        source_ids = list(dict.fromkeys(_CITATION_RE.findall(sentence)))
         claims.append(Claim(
             claim_id=f"C{len(claims) + 1}",
-            text=text,
+            text=sentence,
             cited_source_ids=source_ids,
         ))
     return claims
