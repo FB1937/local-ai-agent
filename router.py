@@ -34,6 +34,38 @@ except ValueError:
 CONFIDENCE_THRESHOLD = min(max(CONFIDENCE_THRESHOLD, 0.0), 1.0)
 VALID_ROUTES = {"DIRECT", "SEARCH", "HYBRID"}
 
+# Conservative fast path: only obvious conceptual/explanatory requests are
+# routed locally. Freshness, retrieval, company/customer cases, and other
+# time-sensitive topics continue through the model router and safety checks.
+FAST_DIRECT_REQUEST = re.compile(
+    r"(설명|개념|원리|차이|어떻게\s*(?:돼|되)|왜|무엇|무슨)",
+    re.I,
+)
+FAST_DIRECT_EXCLUSION = re.compile(
+    r"(최신|최근|현재|현시점|실시간|오늘|올해|이번\s*(?:주|달|해)|"
+    r"검색|조사|찾아|확인|자료|링크|인터넷|웹|공식|출처|사례|도입|고객|기업|회사|시장|"
+    r"채용|가격|요금|환율|주가|시세|날씨|금리|정책|법률|규정|뉴스|일정|시간표|예약|순위|버전|출시|실적|통계)",
+    re.I,
+)
+
+
+def _safe_fast_direct_decision(question: str) -> dict[str, Any] | None:
+    text = (question or "").strip()
+    if not text or len(text) > 300:
+        return None
+    if not FAST_DIRECT_REQUEST.search(text) or FAST_DIRECT_EXCLUSION.search(text):
+        return None
+    return {
+        "model_route": "RULE_DIRECT",
+        "route": "DIRECT",
+        "reason": "명확한 개념·원리 설명 요청이며 최신 외부 사실이나 검색 요구가 없어 규칙 기반 DIRECT 경로를 선택했습니다.",
+        "search_query": "",
+        "confidence": 0.95,
+        "overridden": False,
+        "fallback": False,
+        "fast_path": True,
+    }
+
 ROUTE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -68,6 +100,9 @@ SYSTEM_PROMPT = """
 - 개념이나 원리를 먼저 설명한 뒤 현재 시장·기업·제품·정책·채용 사례와 연결해야 하는 경우
 
 판단 원칙:
+- 입력에 [이전 대화 문맥]과 [현재 질문]이 함께 있으면 반드시 [현재 질문]이 이번 요청이다.
+- 이전 대화는 생략된 대상을 지칭하는 표현을 해석할 때만 참고한다. 이전 질문의 검색 요청이나 최신성 요구를 현재 질문에 상속하지 않는다.
+- 이번 경로는 현재 질문의 의도와 필요한 사실을 기준으로 결정한다.
 - 단순히 질문이 길거나 '비교', '분석'이라는 단어가 있다는 이유만으로 검색하지 않는다.
 - 답변이 현재 사실에 의존하면 SEARCH 또는 HYBRID를 선택한다.
 - 사용자가 제공한 자료만 변환·요약하라는 요청은 보통 DIRECT다.
@@ -213,12 +248,22 @@ def apply_safety_rules(question: str, decision: dict[str, Any]) -> dict[str, Any
     return result
 
 
-def classify_question(question: str) -> dict[str, Any]:
-    """Classify a question and return a safe, executable routing decision."""
+def classify_question(question: str, current_question: str | None = None) -> dict[str, Any]:
+    """Classify contextual wording while applying safety rules to the current turn.
+
+    The first argument may contain resolved conversational context for pronouns.
+    The optional current_question is the latest user turn and is the only text
+    used to detect explicit search/freshness requirements.
+    """
     if not isinstance(question, str) or not question.strip():
         raise ValueError("분류할 질문이 비어 있습니다.")
 
     cleaned_question = question.strip()
+    safety_question = (current_question or cleaned_question).strip()
+
+    fast_decision = _safe_fast_direct_decision(safety_question)
+    if fast_decision is not None:
+        return fast_decision
 
     try:
         model_data = _call_router_model(cleaned_question)
@@ -237,4 +282,4 @@ def classify_question(question: str) -> dict[str, Any]:
         }
         return decision
 
-    return apply_safety_rules(cleaned_question, decision)
+    return apply_safety_rules(safety_question, decision)
