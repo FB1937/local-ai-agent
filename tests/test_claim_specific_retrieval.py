@@ -27,6 +27,22 @@ class ClaimSpecificRetrievalTests(unittest.TestCase):
         self.assertTrue(all(p.source_url == "https://example.org/python" for p in result.passages))
         self.assertTrue(all(p.retrieval_method == "lexical_fallback" for p in result.passages))
 
+    def test_passage_selected_for_one_claim_is_not_linked_to_another(self):
+        claims = extract_cited_claims(
+            "First claim about parser diagnostics. [S1]\n"
+            "Second claim about release timing. [S1]"
+        )
+        from claim_analysis import EvidencePassage, map_claims_to_cited_passages
+        passages = [
+            EvidencePassage(
+                evidence_id="E1", source_id="S1", claim_id="C1",
+                text="Python parser diagnostics are clearer.", location="sentence:1",
+            )
+        ]
+        links, unmapped = map_claims_to_cited_passages(claims, passages)
+        self.assertEqual([(link.claim_id, link.evidence_id) for link in links], [("C1", "E1")])
+        self.assertEqual(unmapped, [])
+
     def test_uncited_sources_never_enter_claim_retrieval(self):
         claims = extract_cited_claims("Python improves parser diagnostics. [S1]")
         passages, unmapped = retrieve_claim_evidence_passages(
