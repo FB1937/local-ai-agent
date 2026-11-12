@@ -159,18 +159,13 @@ def map_claims_to_cited_passages(
     unmapped: list[str] = []
     for claim in claims:
         for source_id in claim.cited_source_ids:
-            source_passages = by_source.get(source_id, [])
-            if not source_passages:
-                if source_id not in unmapped:
-                    unmapped.append(source_id)
-                continue
             candidates = [
-                p for p in source_passages
+                p for p in by_source.get(source_id, [])
                 if p.claim_id is None or p.claim_id == claim.claim_id
             ]
-            # A source can be mapped while having no passage relevant to this claim.
-            # That is a claim-level evidence gap, not an unknown source citation.
             if not candidates:
+                if source_id not in unmapped:
+                    unmapped.append(source_id)
                 continue
             links.extend(
                 ClaimEvidenceLink(claim_id=claim.claim_id, evidence_id=p.evidence_id)

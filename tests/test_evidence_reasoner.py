@@ -15,7 +15,7 @@ class FakeResponse:
         return {"message": {"content": self.content}}
 
 
-def make_analysis(text="Python 3.15 was released in October."):
+def make_analysis(text="Python 3.15 was released in October, according to the official release announcement."):
     return analyze_claim_evidence(
         "Python 3.15 was released in October. [S1]",
         [{"source_id": "S1", "url": "https://example.org/release", "content": text}],
@@ -33,7 +33,7 @@ class EvidenceReasonerTests(unittest.TestCase):
 
     def test_classifies_contradiction(self):
         request = Mock(return_value=FakeResponse(json.dumps({"relation": "contradicts", "reason": "Different month."})))
-        result = reason_claim_evidence(make_analysis("Python 3.15 was released in November."), request_fn=request)
+        result = reason_claim_evidence(make_analysis("Python 3.15 was released in November, according to the official release announcement."), request_fn=request)
         self.assertEqual(result.links[0].relation, "contradicts")
 
     def test_classifies_insufficient_and_irrelevant(self):
