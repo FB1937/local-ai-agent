@@ -26,10 +26,11 @@ def evaluate_dataset(dataset_path: str | Path = DEFAULT_DATASET) -> dict:
     conflict_type_correct = 0
     for row in rows:
         passages, links = [], []
-        for item in row["evidence"]:
+        for index, item in enumerate(row["evidence"], 1):
+            evidence_id = f"E{index}"
             start, end = _time_bounds(item.get("valid_time"))
             passages.append(EvidencePassage(
-                evidence_id=item["evidence_id"],
+                evidence_id=evidence_id,
                 source_id=item["source_id"],
                 source_group=item.get("source_group"),
                 text=item["text"],
@@ -40,7 +41,7 @@ def evaluate_dataset(dataset_path: str | Path = DEFAULT_DATASET) -> dict:
                 valid_time_end=end,
             ))
             links.append(ClaimEvidenceLink(
-                claim_id="C1", evidence_id=item["evidence_id"],
+                claim_id="C1", evidence_id=evidence_id,
                 relation=item["relation"], reason="Manually labelled pairwise relation.",
             ))
         result = synthesize_claim_evidence(ClaimAnalysisResult(
