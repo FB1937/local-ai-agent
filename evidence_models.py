@@ -23,6 +23,11 @@ class EvidenceSource(BaseModel):
     extracted_title: str | None = None
     extracted_text: str | None = None
     extraction_status: str = "not_attempted"
+    source_group: str | None = None
+    canonical_source_id: str | None = None
+    scope: str | None = None
+    valid_time_start: str | None = None
+    valid_time_end: str | None = None
 
     @field_validator("published", mode="before")
     @classmethod

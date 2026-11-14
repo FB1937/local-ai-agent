@@ -44,6 +44,11 @@ class EvidencePassage(BaseModel):
     retrieval_method: str | None = None
     published_at: str | None = None
     retrieved_at: datetime | None = None
+    source_group: str | None = None
+    canonical_source_id: str | None = None
+    scope: str | None = None
+    valid_time_start: str | None = None
+    valid_time_end: str | None = None
 
 
 class ClaimEvidenceLink(BaseModel):
@@ -143,6 +148,11 @@ def build_evidence_passages(
                 source_url=source.url,
                 published_at=source.published,
                 retrieved_at=source.retrieved_at,
+                source_group=source.source_group,
+                canonical_source_id=source.canonical_source_id,
+                scope=source.scope,
+                valid_time_start=source.valid_time_start,
+                valid_time_end=source.valid_time_end,
             ))
     return passages
 
@@ -224,6 +234,11 @@ def retrieve_claim_evidence_passages(
                     retrieval_method=item.get("retrieval_method"),
                     published_at=source.published,
                     retrieved_at=source.retrieved_at,
+                    source_group=source.source_group,
+                    canonical_source_id=source.canonical_source_id,
+                    scope=source.scope,
+                    valid_time_start=source.valid_time_start,
+                    valid_time_end=source.valid_time_end,
                 ))
     return passages, unmapped
 
