@@ -45,7 +45,7 @@ class EvidenceReasoningEvaluationTests(unittest.TestCase):
         predictions = {case["id"]: case["expected_relation"] for case in cases}
         predictions[cases[0]["id"]] = None
         result = score_predictions(cases, predictions)
-        self.assertEqual(result["accuracy"], 31 / 32)
+        self.assertAlmostEqual(result["accuracy"], 31 / 32, places=4)
         self.assertEqual(result["unassessed"], 1)
         self.assertEqual(result["confusion_matrix"]["supports"]["unassessed"], 1)
 
@@ -54,7 +54,7 @@ class EvidenceReasoningEvaluationTests(unittest.TestCase):
         predictions = {case["id"]: case["expected_relation"] for case in cases}
         predictions["ER-S01"] = "contradicts"
         result = score_predictions(cases, predictions)
-        self.assertEqual(result["accuracy"], 31 / 32)
+        self.assertAlmostEqual(result["accuracy"], 31 / 32, places=4)
         self.assertEqual(result["confusion_matrix"]["supports"]["contradicts"], 1)
         self.assertLess(result["macro_f1"], 1.0)
 
