@@ -30,6 +30,8 @@ class ClaimEvidenceSynthesis(BaseModel):
     duplicate_groups: list[list[str]] = Field(default_factory=list)
     independent_support_group_count: int = 0
     independent_contradiction_group_count: int = 0
+    distinct_source_group_count: int = 0
+    source_lineage_status: Literal["not_applicable", "single_source_group", "multiple_source_groups", "unknown"] = "unknown"
     joint_supporting_evidence_ids: list[str] = Field(default_factory=list)
     joint_contradicting_evidence_ids: list[str] = Field(default_factory=list)
     semantic_reason: str | None = None
@@ -97,6 +99,7 @@ def _aggregate_one_claim(
     if not links:
         return ClaimEvidenceSynthesis(
             claim_id=claim_id, status="insufficient",
+            distinct_source_group_count=0, source_lineage_status="not_applicable",
             reason="연결된 근거 구절이 없습니다.",
         )
 
@@ -180,6 +183,11 @@ def _aggregate_one_claim(
         duplicate_groups=duplicates,
         independent_support_group_count=_independent_group_count(supporting, by_id),
         independent_contradiction_group_count=_independent_group_count(contradicting, by_id),
+        distinct_source_group_count=len({_source_group(p) for p in claim_passages}),
+        source_lineage_status=(
+            "multiple_source_groups" if len({_source_group(p) for p in claim_passages}) > 1
+            else "single_source_group" if claim_passages else "not_applicable"
+        ),
         reason=reason,
     )
 

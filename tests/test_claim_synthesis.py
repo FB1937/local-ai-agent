@@ -113,6 +113,21 @@ class ClaimSynthesisTests(unittest.TestCase):
         result = synthesize_claim_evidence(make_analysis(["insufficient", "insufficient", "insufficient"])).claims[0]
         self.assertEqual(result.status, "insufficient")
 
+    def test_source_lineage_is_separate_from_duplicate_content(self):
+        analysis = make_analysis(["insufficient", "insufficient"], groups={1: "origin-A", 2: "origin-A"})
+        # Distinct passages from one source group are not automatically duplicate content.
+        result = synthesize_claim_evidence(analysis).claims[0]
+        self.assertEqual(result.source_lineage_status, "single_source_group")
+        self.assertEqual(result.distinct_source_group_count, 1)
+        self.assertEqual(result.duplicate_groups, [])
+
+    def test_multiple_source_groups_are_reported_without_claiming_true_independence(self):
+        result = synthesize_claim_evidence(make_analysis(
+            ["supports", "supports"], groups={1: "origin-A", 2: "origin-B"}
+        )).claims[0]
+        self.assertEqual(result.source_lineage_status, "multiple_source_groups")
+        self.assertEqual(result.distinct_source_group_count, 2)
+
     def test_independent_source_groups_are_counted_separately(self):
         result = synthesize_claim_evidence(make_analysis(
             ["supports", "supports"], groups={1: "origin-A", 2: "origin-B"}

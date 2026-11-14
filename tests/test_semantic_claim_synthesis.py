@@ -21,8 +21,11 @@ def sample():
     )
 
 class SemanticSynthesisTests(unittest.TestCase):
-    def respond(self, payload):
-        return Mock(return_value=FakeResponse(json.dumps(payload, ensure_ascii=False)))
+    def respond(self, payload, *, consistent=True):
+        return Mock(side_effect=[
+            FakeResponse(json.dumps(payload, ensure_ascii=False)),
+            FakeResponse(json.dumps({"consistent": consistent, "reason": "relation and reason agree"})),
+        ])
     def test_joint_support_upgrade_preserves_pairwise_links(self):
         analysis=sample(); before=[x.model_dump() for x in analysis.links]
         result, report=synthesize_claim_evidence_semantically(analysis, request_fn=self.respond({
@@ -91,6 +94,29 @@ class SemanticSynthesisTests(unittest.TestCase):
         }))
         self.assertEqual(result.claims[0].status,"insufficient")
         self.assertEqual(report.unassessed_count,1)
+    def test_verdict_reason_inconsistency_fails_closed(self):
+        request = self.respond({
+            "relation": "supports", "evidence_ids": ["E1", "E2"],
+            "reason": "계산 결과 48,000원으로 주장된 80,000원과 다릅니다.",
+        }, consistent=False)
+        result, report = synthesize_claim_evidence_semantically(sample(), request_fn=request)
+        self.assertEqual(result.claims[0].status, "insufficient")
+        self.assertEqual(report.unassessed_count, 1)
+        self.assertEqual(report.assessed_count, 0)
+        self.assertEqual(request.call_count, 2)
+
+    def test_consistency_verifier_failure_preserves_baseline(self):
+        request = Mock(side_effect=[
+            FakeResponse(json.dumps({
+                "relation": "supports", "evidence_ids": ["E1", "E2"],
+                "reason": "월과 첫날 규칙을 결합함",
+            }, ensure_ascii=False)),
+            TimeoutError("verifier timeout"),
+        ])
+        result, report = synthesize_claim_evidence_semantically(sample(), request_fn=request)
+        self.assertEqual(result.claims[0].status, "insufficient")
+        self.assertEqual(report.unassessed_count, 1)
+
     def test_model_failure_preserves_baseline(self):
         result,report=synthesize_claim_evidence_semantically(sample(),request_fn=Mock(side_effect=TimeoutError()))
         self.assertEqual(result.claims[0].status,"insufficient")
