@@ -53,7 +53,7 @@ Dataset: `evaluation/multi_evidence_cases.jsonl` — 32 manually labelled Korean
 
 Each evidence item records a pairwise relation label plus source identity/group and optional scope/valid-time/publication metadata. The expected aggregate label and conflict type are manually assigned. This is a small diagnostic set, not a production benchmark or statistical estimate.
 
-Keep the M3.3 24-case holdout untouched. Do not tune M3.4 prompts or rules on that holdout; use the new M3.4 dataset for development and create a separate M3.4 holdout before claiming independent generalization.
+Keep the M3.3 24-case holdout untouched. Do not tune M3.4 prompts or rules on that holdout. A separate M3.4 holdout now exists at `evaluation/multi_evidence_holdout.jsonl`: 24 newly authored Korean synthetic cases, balanced 6 per aggregate status. It is a frozen diagnostic set and must not be used for prompt/rule tuning; run it once after the current development decisions are frozen.
 
 ## Implementation sequence
 
@@ -63,8 +63,9 @@ Keep the M3.3 24-case holdout untouched. Do not tune M3.4 prompts or rules on th
 - [x] Add unit tests for direct conflict, scope/condition/time mismatch, duplicates, missing judgments, no evidence, and no-majority behavior.
 - [x] Use an LLM only where joint entailment is needed; request structured explanations with evidence IDs.
 - [x] Keep deterministic policy responsible for the baseline verdict; semantic upgrades require valid IDs from the supplied set and at least two distinct passages.
-- [ ] Run local Qwen 3.5 9B semantic evaluation and inspect every error, not just the aggregate score.
-- [ ] Add a separate M3.4 semantic holdout before claiming independent generalization.
+- [x] Run local Qwen 3.5 9B semantic evaluation on the 32-case development set and inspect status and conflict-type errors separately.
+- [x] Add a separate 24-case M3.4 holdout; keep it untouched until the one-time independent evaluation.
+- [ ] Run the frozen M3.4 holdout once with deterministic and semantic modes; do not tune against its results.
 - [ ] Integrate into the Agent response pipeline only after standalone behavior is stable.
 
 ## Current deterministic baseline
@@ -79,3 +80,10 @@ This baseline deliberately does not infer joint entailment from multiple pairwis
 - No automatic selection of a winning source when two same-scope primary sources conflict.
 - No claim that source authority, recency, or passage count alone proves truth.
 - No M3.5 pipeline integration in this increment.
+
+
+## M3.4 evaluator diagnostics and holdout status
+
+The evaluator now reports claim-status mismatches and conflict-taxonomy mismatches independently. `mismatches` tracks aggregate status; `conflict_type_mismatches` tracks taxonomy labels even when the aggregate status is correct. The 32-case semantic development run previously reported 32/32 status accuracy and macro-F1 1.0, but conflict-type accuracy was 31/32. The newly exposed subtype mismatch is ME-I04: expected `duplicate_not_independent`, actual `none`, with aggregate status correctly `insufficient`. This identifies a taxonomy/diagnostic behavior gap; it must not be hidden by the perfect status score.
+
+The independent M3.4 holdout contains 24 newly authored cases balanced across supported, contradicted, conflict, and insufficient (6 each). It includes direct and joint entailment/contradiction, source lineage, explicit scope/condition/time differences, weak evidence, and stale current-state evidence. The holdout has not been run against the local model and must remain untouched by further prompt/rule tuning. Its synthetic nature means even a perfect result is diagnostic evidence, not proof of real-world generalization.
