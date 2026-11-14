@@ -66,6 +66,23 @@ class ClaimAnalysisTests(unittest.TestCase):
         self.assertEqual(links, [])
         self.assertEqual(unmapped, ["S8"])
 
+    def test_passage_preserves_source_scope_condition_and_valid_time(self):
+        passages = build_evidence_passages([{
+            "source_id": "S1",
+            "url": "https://example.org/source",
+            "content": "조건이 명시된 근거 문장입니다.",
+            "source_group": "publisher-A",
+            "scope": "free-plan",
+            "condition": "monthly billing",
+            "valid_time_start": "2026-01-01",
+            "valid_time_end": "2026-12-31",
+        }])
+        self.assertEqual(passages[0].source_group, "publisher-A")
+        self.assertEqual(passages[0].scope, "free-plan")
+        self.assertEqual(passages[0].condition, "monthly billing")
+        self.assertEqual(passages[0].valid_time_start, "2026-01-01")
+        self.assertEqual(passages[0].valid_time_end, "2026-12-31")
+
     def test_passage_limits_are_enforced(self):
         passages = build_evidence_passages([{
             "source_id": "S1",
