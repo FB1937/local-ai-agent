@@ -121,12 +121,12 @@ def evaluate(cases: list[dict], *, model: str | None = None,
     analysis = build_analysis(cases)
     call_timings: dict[str, float] = {}
     case_by_claim = {f"C{i}": case for i, case in enumerate(cases, 1)}
+    request_index = 0
 
     def timed_request(url, **kwargs):
-        payload = kwargs.get("json", {})
-        prompt = json.loads(payload["messages"][1]["content"])
-        claim_text = prompt["claim"]
-        case = next((item for item in cases if item["claim"] == claim_text), None)
+        nonlocal request_index
+        case = cases[request_index] if request_index < len(cases) else None
+        request_index += 1
         started = time.perf_counter()
         try:
             return requests.post(url, **kwargs)
