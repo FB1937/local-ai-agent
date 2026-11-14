@@ -75,6 +75,24 @@ class EvidenceReasoningEvaluationTests(unittest.TestCase):
         self.assertEqual(result["summary"]["latency_ms"]["count"], 3)
         self.assertEqual(result["model"], "test-model")
 
+    def test_duplicate_claim_text_keeps_per_case_latency_records(self):
+        original = load_dataset()[0]
+        cases = [dict(original), dict(original, id="ER-DUPLICATE")]
+
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"message": {"content": '{"relation":"supports","reason":"direct"}'}}
+
+        with patch("evaluation.evidence_reasoning.requests.post", return_value=FakeResponse()) as post:
+            result = evaluate(cases, model="test-model", ollama_url="http://localhost:11434")
+
+        self.assertEqual(post.call_count, 2)
+        self.assertEqual(result["summary"]["latency_ms"]["count"], 2)
+        self.assertTrue(all(case["latency_ms"] is not None for case in result["cases"]))
+
     def test_latency_statistics_ignore_unmeasured_cases(self):
         cases = load_dataset()
         predictions = {case["id"]: case["expected_relation"] for case in cases}
