@@ -44,11 +44,58 @@ def _eligible_ids(item: ClaimEvidenceSynthesis) -> list[str]:
     duplicates = {value for group in item.duplicate_groups for value in group}
     return [value for value in item.insufficient_evidence_ids if value not in duplicates]
 
-def _apply(baseline: ClaimEvidenceSynthesis, assessment: JointEntailmentAssessment) -> ClaimEvidenceSynthesis:
+
+def _source_group_key(passage) -> str:
+    """Return the strongest available identity for the underlying source."""
+    value = passage.canonical_source_id or passage.source_group or passage.source_id
+    return value.strip().casefold()
+
+
+def _independent_source_count(evidence_ids: list[str], passages: dict) -> int:
+    return len({
+        _source_group_key(passages[evidence_id])
+        for evidence_id in evidence_ids
+        if evidence_id in passages
+    })
+
+
+def _select_ids_from_independent_groups(
+    evidence_ids: list[str], passages: dict, limit: int,
+) -> list[str]:
+    """Prefer one passage per source group before adding same-source passages."""
+    selected: list[str] = []
+    seen_groups: set[str] = set()
+    for evidence_id in evidence_ids:
+        passage = passages.get(evidence_id)
+        if passage is None:
+            continue
+        group = _source_group_key(passage)
+        if group not in seen_groups:
+            selected.append(evidence_id)
+            seen_groups.add(group)
+        if len(selected) >= limit:
+            return selected
+    for evidence_id in evidence_ids:
+        if evidence_id not in selected and evidence_id in passages:
+            selected.append(evidence_id)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def _apply(
+    baseline: ClaimEvidenceSynthesis,
+    assessment: JointEntailmentAssessment,
+    passages: dict,
+) -> ClaimEvidenceSynthesis:
     if not assessment.assessed or assessment.relation not in {"supports", "contradicts"}:
         return baseline
     selected = list(dict.fromkeys(assessment.evidence_ids))
-    if len(selected) < 2 or not set(selected).issubset(set(_eligible_ids(baseline))):
+    if (
+        len(selected) < 2
+        or not set(selected).issubset(set(_eligible_ids(baseline)))
+        or _independent_source_count(selected, passages) < 2
+    ):
         return baseline
     if assessment.relation == "supports":
         return baseline.model_copy(update={
@@ -82,11 +129,16 @@ def synthesize_claim_evidence_semantically(
         ids = _eligible_ids(item)
         if item.status != "insufficient" or len(ids) < 2:
             continue
+        # Joint upgrades are corroborative: evidence IDs alone do not prove
+        # independence. Require at least two distinct canonical source groups.
+        if _independent_source_count(ids, passages) < 2:
+            skipped += 1
+            continue
         if assessed + unassessed >= max_claims:
             skipped += 1
             continue
         claim = claims.get(item.claim_id)
-        selected_ids = ids[:max_evidence_per_claim]
+        selected_ids = _select_ids_from_independent_groups(ids, passages, max_evidence_per_claim)
         selected = [passages[eid] for eid in selected_ids if eid in passages]
         try:
             if claim is None or len(selected) < 2:
@@ -126,7 +178,7 @@ def synthesize_claim_evidence_semantically(
                 evidence_ids=list(dict.fromkeys(evidence_ids)),
                 reason=str(data.get("reason") or "모델이 판정 사유를 제공하지 않았습니다.")[:1000],
             )
-            updated[item.claim_id] = _apply(item, assessment)
+            updated[item.claim_id] = _apply(item, assessment, passages)
             assessed += 1
         except Exception as exc:
             assessment = JointEntailmentAssessment(

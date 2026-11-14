@@ -89,7 +89,7 @@ def evaluate_dataset(dataset_path: str | Path = DEFAULT_DATASET, *, semantic: bo
         "semantic_assessed_count": semantic_assessed,
         "semantic_unassessed_count": semantic_unassessed,
         "semantic_skipped_count": semantic_skipped,
-        "note": ("Synthetic diagnostic only. Semantic mode calls the local model only for deterministic-insufficient claims with at least two non-duplicate insufficient passages. Invalid output or model failures preserve the deterministic verdict; this is not a production-quality estimate." if semantic else "Synthetic diagnostic only. Joint entailment from multiple pairwise-insufficient passages is intentionally not inferred by the deterministic baseline."),
+        "note": ("Synthetic diagnostic only. Semantic mode calls the local model only for deterministic-insufficient claims with at least two non-duplicate passages from distinct canonical source groups. Invalid output or model failures preserve the deterministic verdict; this is not a production-quality estimate." if semantic else "Synthetic diagnostic only. Joint entailment from multiple pairwise-insufficient passages is intentionally not inferred by the deterministic baseline."),
     }
 
 

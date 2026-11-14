@@ -33,6 +33,52 @@ class SemanticSynthesisTests(unittest.TestCase):
         self.assertEqual(result.claims[0].insufficient_evidence_ids,["E1","E2"])
         self.assertEqual(report.assessed_count,1)
         self.assertEqual([x.model_dump() for x in analysis.links],before)
+    def test_same_source_group_with_different_passages_is_not_independent(self):
+        analysis = sample()
+        analysis.passages[0].source_group = "same-article"
+        analysis.passages[1].source_group = "same-article"
+        request = self.respond({
+            "relation": "supports", "evidence_ids": ["E1", "E2"], "reason": "not independent"
+        })
+        result, report = synthesize_claim_evidence_semantically(analysis, request_fn=request)
+        request.assert_not_called()
+        self.assertEqual(result.claims[0].status, "insufficient")
+        self.assertEqual(report.assessed_count, 0)
+        self.assertEqual(report.skipped_count, 1)
+
+    def test_same_source_id_with_multiple_passages_is_not_independent(self):
+        analysis = sample()
+        analysis.passages[0].source_id = "S1"
+        analysis.passages[1].source_id = "S1"
+        analysis.passages[0].source_group = None
+        analysis.passages[1].source_group = None
+        request = self.respond({
+            "relation": "supports", "evidence_ids": ["E1", "E2"], "reason": "not independent"
+        })
+        result, report = synthesize_claim_evidence_semantically(analysis, request_fn=request)
+        request.assert_not_called()
+        self.assertEqual(result.claims[0].status, "insufficient")
+        self.assertEqual(report.skipped_count, 1)
+
+    def test_selection_prioritizes_distinct_source_groups(self):
+        analysis = sample()
+        analysis.passages[0].source_group = "origin-A"
+        analysis.passages[1].source_group = "origin-A"
+        analysis.passages.append(EvidencePassage(
+            evidence_id="E3", source_id="S3", source_group="origin-B",
+            text="별도 출처의 보완 전제", location="p3",
+        ))
+        analysis.links.append(ClaimEvidenceLink(
+            claim_id="C1", evidence_id="E3", relation="insufficient",
+        ))
+        request = self.respond({
+            "relation": "supports", "evidence_ids": ["E1", "E3"], "reason": "independent premises"
+        })
+        result, report = synthesize_claim_evidence_semantically(analysis, request_fn=request, max_evidence_per_claim=2)
+        self.assertEqual(result.claims[0].status, "supported")
+        sent = json.loads(request.call_args.kwargs["json"]["messages"][1]["content"])
+        self.assertEqual([item["evidence_id"] for item in sent["evidence"]], ["E1", "E3"])
+
     def test_unknown_evidence_id_fails_closed(self):
         result,report=synthesize_claim_evidence_semantically(sample(),request_fn=self.respond({
             "relation":"supports","evidence_ids":["E1","E99"],"reason":"invalid"
