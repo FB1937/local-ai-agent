@@ -40,6 +40,15 @@ class MultiEvidenceDatasetTests(unittest.TestCase):
             if row["expected_status"] == "insufficient":
                 self.assertNotEqual(row["expected_conflict_type"], "direct")
 
+    def test_condition_mismatch_case_separates_scope_from_condition(self):
+        row = next(item for item in self.rows if item["case_id"] == "ME-I03")
+        self.assertEqual(row["expected_conflict_type"], "condition_mismatch")
+        self.assertEqual({item["scope"] for item in row["evidence"]}, {"default"})
+        self.assertEqual(
+            {item["condition"] for item in row["evidence"]},
+            {"standard account", "enterprise account"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
