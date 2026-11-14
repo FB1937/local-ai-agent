@@ -19,8 +19,9 @@ class FakeResponse:
 class EvidenceReasonerPromptTests(unittest.TestCase):
     def test_prompt_encodes_logical_boundary_rules(self):
         analysis = analyze_claim_evidence(
-            "제품 인터페이스는 한국어를 지원한다. [S1]",
-            [{"source_id": "S1", "url": "https://example.org", "content": "제품 인터페이스는 12개 언어로 제공된다."}],
+            "Python 3.15 was released in October. [S1]",
+            [{"source_id": "S1", "url": "https://example.org/release",
+              "content": "Python 3.15 was released in October, according to the official release announcement."}],
             semantic_enabled=False,
         )
         request = Mock(return_value=FakeResponse())
@@ -35,6 +36,7 @@ class EvidenceReasonerPromptTests(unittest.TestCase):
         self.assertIn("Absence of a detail is not evidence", system_prompt)
         self.assertIn("Do not assume a list is exhaustive", system_prompt)
         self.assertIn("Do not infer missing facts", task_prompt)
+        self.assertIn("untrusted quoted data", task_prompt)
 
     def test_boundary_dataset_is_balanced_and_valid(self):
         path = Path(__file__).parents[1] / "evaluation" / "evidence_reasoning_boundary_cases.jsonl"
