@@ -7,6 +7,7 @@ from pathlib import Path
 
 from claim_analysis import Claim, ClaimAnalysisResult, ClaimEvidenceLink, EvidencePassage
 from claim_synthesis import synthesize_claim_evidence
+from semantic_claim_synthesis import synthesize_claim_evidence_semantically
 
 LABELS = ("supported", "contradicted", "conflict", "insufficient", "unassessed")
 DEFAULT_DATASET = Path(__file__).with_name("multi_evidence_cases.jsonl")
@@ -19,11 +20,12 @@ def _time_bounds(value: str | None) -> tuple[str | None, str | None]:
     return start or None, end or None
 
 
-def evaluate_dataset(dataset_path: str | Path = DEFAULT_DATASET) -> dict:
+def evaluate_dataset(dataset_path: str | Path = DEFAULT_DATASET, *, semantic: bool = False, model: str | None = None, ollama_url: str | None = None, timeout: int = 90) -> dict:
     rows = [json.loads(line) for line in Path(dataset_path).read_text(encoding="utf-8").splitlines() if line.strip()]
     confusion = {actual: {predicted: 0 for predicted in LABELS} for actual in LABELS}
     mismatches = []
     conflict_type_correct = 0
+    semantic_assessed = semantic_unassessed = semantic_skipped = 0
     for row in rows:
         passages, links = [], []
         for index, item in enumerate(row["evidence"], 1):
@@ -44,10 +46,17 @@ def evaluate_dataset(dataset_path: str | Path = DEFAULT_DATASET) -> dict:
                 claim_id="C1", evidence_id=evidence_id,
                 relation=item["relation"], reason="Manually labelled pairwise relation.",
             ))
-        result = synthesize_claim_evidence(ClaimAnalysisResult(
-            claims=[Claim(claim_id="C1", text=row["claim"])],
-            passages=passages, links=links,
-        )).claims[0]
+        analysis = ClaimAnalysisResult(claims=[Claim(claim_id="C1", text=row["claim"])], passages=passages, links=links)
+        baseline_report = synthesize_claim_evidence(analysis)
+        result = baseline_report.claims[0]
+        if semantic:
+            semantic_result, semantic_report = synthesize_claim_evidence_semantically(
+                analysis, baseline_report=baseline_report, model=model, ollama_url=ollama_url, timeout=timeout,
+            )
+            result = semantic_result.claims[0]
+            semantic_assessed += semantic_report.assessed_count
+            semantic_unassessed += semantic_report.unassessed_count
+            semantic_skipped += semantic_report.skipped_count
         expected = row["expected_status"]
         confusion[expected][result.status] += 1
         conflict_type_correct += int(result.conflict_type == row["expected_conflict_type"])
@@ -76,7 +85,11 @@ def evaluate_dataset(dataset_path: str | Path = DEFAULT_DATASET) -> dict:
         "macro_f1": sum(f1_values) / len(f1_values) if f1_values else 0.0,
         "conflict_type_accuracy": conflict_type_correct / total if total else 0.0,
         "per_class": per_class, "confusion_matrix": confusion, "mismatches": mismatches,
-        "note": "Synthetic diagnostic only. Joint entailment from multiple pairwise-insufficient passages is intentionally not inferred by the deterministic baseline.",
+        "mode": "semantic_assisted" if semantic else "deterministic",
+        "semantic_assessed_count": semantic_assessed,
+        "semantic_unassessed_count": semantic_unassessed,
+        "semantic_skipped_count": semantic_skipped,
+        "note": ("Synthetic diagnostic only. Semantic mode calls the local model only for deterministic-insufficient claims with at least two non-duplicate insufficient passages. Invalid output or model failures preserve the deterministic verdict; this is not a production-quality estimate." if semantic else "Synthetic diagnostic only. Joint entailment from multiple pairwise-insufficient passages is intentionally not inferred by the deterministic baseline."),
     }
 
 
@@ -84,8 +97,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", default=str(DEFAULT_DATASET))
     parser.add_argument("--output", help="Optional JSON output path")
+    parser.add_argument("--semantic", action="store_true", help="Enable bounded Ollama joint-entailment checks")
+    parser.add_argument("--model", help="Ollama model name; defaults to OLLAMA_MODEL or qwen3.5:9b")
+    parser.add_argument("--ollama-url", help="Ollama base URL; defaults to OLLAMA_URL or localhost")
+    parser.add_argument("--timeout", type=int, default=90)
     args = parser.parse_args()
-    report = evaluate_dataset(args.dataset)
+    report = evaluate_dataset(args.dataset, semantic=args.semantic, model=args.model, ollama_url=args.ollama_url, timeout=args.timeout)
     rendered = json.dumps(report, ensure_ascii=False, indent=2)
     print(rendered)
     if args.output:

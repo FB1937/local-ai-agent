@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-Design, labelled diagnostic dataset, and an initial deterministic aggregation baseline are implemented on the existing M3 PR branch. Semantic joint-entailment/conflict diagnosis and Agent-pipeline integration remain pending. `main` is not changed and PR #14 remains Draft.
+Design, labelled diagnostic dataset, deterministic aggregation baseline, and a bounded LLM-assisted joint-entailment layer are implemented on the existing M3 PR branch. Agent-pipeline integration remains pending. `main` is not changed and PR #14 remains Draft.
 
 ## Problem
 
@@ -61,16 +61,17 @@ Keep the M3.3 24-case holdout untouched. Do not tune M3.4 prompts or rules on th
 - [x] Add Pydantic aggregate result contracts with evidence provenance.
 - [x] Implement deterministic prechecks for missing judgments, duplicate identity, and explicit scope/time/condition metadata.
 - [x] Add unit tests for direct conflict, scope/condition/time mismatch, duplicates, missing judgments, no evidence, and no-majority behavior.
-- [ ] Use an LLM only where semantic comparison of claim/evidence scopes or joint entailment is needed; request structured explanations with evidence IDs.
-- [ ] Keep deterministic policy responsible for applying the final status and fail-closed behavior after semantic diagnosis.
-- [ ] Run local Qwen 3.5 9B evaluation and inspect every error, not just the aggregate score.
+- [x] Use an LLM only where joint entailment is needed; request structured explanations with evidence IDs.
+- [x] Keep deterministic policy responsible for the baseline verdict; semantic upgrades require valid IDs from the supplied set and at least two distinct passages.
+- [ ] Run local Qwen 3.5 9B semantic evaluation and inspect every error, not just the aggregate score.
+- [ ] Add a separate M3.4 semantic holdout before claiming independent generalization.
 - [ ] Integrate into the Agent response pipeline only after standalone behavior is stable.
 
 ## Current deterministic baseline
 
 `claim_synthesis.py` adds `synthesize_claim_evidence()` and separate `ClaimEvidenceSynthesis` / `ClaimSynthesisReport` contracts. It preserves pairwise links, returns `unassessed` when a link is missing or unjudged, and never uses majority voting. A direct support/contradiction pair remains `conflict` unless all cross-pairs have explicit scope, condition, or valid-time mismatches. Duplicate passages are grouped by canonical source/source group plus normalized exact text; duplicates do not inflate independent-source counts. A single valid support remains support even when repeated passages are duplicates.
 
-This baseline deliberately does not infer joint entailment from multiple pairwise `insufficient` labels. Dataset case ME-S08 is a labelled example for the pending semantic synthesis layer. Nor does it infer near-duplicate content, source authority, or freshness from publication date alone.
+This baseline deliberately does not infer joint entailment from multiple pairwise `insufficient` labels. Dataset case ME-S08 is a labelled example for the semantic synthesis layer. `semantic_claim_synthesis.py` now makes a bounded Ollama call only for deterministic-`insufficient` claims with at least two non-duplicate insufficient passages. It accepts structured `supports`, `contradicts`, or `insufficient` results; support/contradiction upgrades require at least two evidence IDs from the supplied set. Original pairwise links remain unchanged, joint evidence IDs are recorded separately, and request/schema/provenance failures leave the deterministic verdict intact. The evaluator exposes this as an opt-in `--semantic` mode; the default remains deterministic. This layer is not integrated into the Agent response pipeline. The system still does not infer near-duplicate content, source authority, or freshness from publication date alone.
 
 ## Non-goals
 

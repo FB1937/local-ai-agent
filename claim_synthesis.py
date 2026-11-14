@@ -30,6 +30,9 @@ class ClaimEvidenceSynthesis(BaseModel):
     duplicate_groups: list[list[str]] = Field(default_factory=list)
     independent_support_group_count: int = 0
     independent_contradiction_group_count: int = 0
+    joint_supporting_evidence_ids: list[str] = Field(default_factory=list)
+    joint_contradicting_evidence_ids: list[str] = Field(default_factory=list)
+    semantic_reason: str | None = None
     reason: str
 
 
