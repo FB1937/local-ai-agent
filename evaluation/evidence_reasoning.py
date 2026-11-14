@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import statistics
 import time
 from pathlib import Path
@@ -121,13 +122,14 @@ def evaluate(cases: list[dict], *, model: str | None = None,
     call_timings: dict[str, float] = {}
     case_by_claim = {f"C{i}": case for i, case in enumerate(cases, 1)}
 
-    def timed_request(url, *, json: dict, timeout: int):
-        prompt = json.loads(json["messages"][1]["content"])
+    def timed_request(url, **kwargs):
+        payload = kwargs.get("json", {})
+        prompt = json.loads(payload["messages"][1]["content"])
         claim_text = prompt["claim"]
         case = next((item for item in cases if item["claim"] == claim_text), None)
         started = time.perf_counter()
         try:
-            return requests.post(url, json=json, timeout=timeout)
+            return requests.post(url, **kwargs)
         finally:
             if case:
                 call_timings[case["id"]] = (time.perf_counter() - started) * 1000
@@ -155,8 +157,8 @@ def evaluate(cases: list[dict], *, model: str | None = None,
         })
     summary = score_predictions(cases, predictions, call_timings)
     return {
-        "model": model or "OLLAMA_MODEL/default",
-        "ollama_url": (ollama_url or "OLLAMA_URL/default").rstrip("/"),
+        "model": model or os.getenv("OLLAMA_MODEL", "qwen3.5:9b"),
+        "ollama_url": (ollama_url or os.getenv("OLLAMA_URL", "http://localhost:11434")).rstrip("/"),
         "timeout_seconds": timeout,
         "summary": summary,
         "cases": details,

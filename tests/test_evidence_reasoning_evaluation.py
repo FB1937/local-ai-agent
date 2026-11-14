@@ -1,6 +1,7 @@
 import unittest
+from unittest.mock import patch
 
-from evaluation.evidence_reasoning import LABELS, load_dataset, score_predictions, build_analysis
+from evaluation.evidence_reasoning import LABELS, load_dataset, score_predictions, build_analysis, evaluate
 
 
 class EvidenceReasoningEvaluationTests(unittest.TestCase):
@@ -56,6 +57,23 @@ class EvidenceReasoningEvaluationTests(unittest.TestCase):
         self.assertEqual(result["accuracy"], 31 / 32)
         self.assertEqual(result["confusion_matrix"]["supports"]["contradicts"], 1)
         self.assertLess(result["macro_f1"], 1.0)
+
+
+    def test_live_runner_uses_existing_reasoner_with_mocked_transport(self):
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"message": {"content": '{"relation":"supports","reason":"direct"}'}}
+
+        cases = load_dataset()[:3]
+        with patch("evaluation.evidence_reasoning.requests.post", return_value=FakeResponse()) as post:
+            result = evaluate(cases, model="test-model", ollama_url="http://localhost:11434")
+        self.assertEqual(post.call_count, 3)
+        self.assertEqual(result["summary"]["total"], 3)
+        self.assertEqual(result["summary"]["latency_ms"]["count"], 3)
+        self.assertEqual(result["model"], "test-model")
 
     def test_latency_statistics_ignore_unmeasured_cases(self):
         cases = load_dataset()
