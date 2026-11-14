@@ -109,3 +109,25 @@ Semantic mode corrected three deterministic status errors, including three joint
 The deterministic baseline missed five joint-inference cases (S03, S04, S06, C03, C05), which is consistent with its documented non-goal of inferring joint entailment. Semantic mode improved status accuracy by 12.5 percentage points on this small synthetic set. This is diagnostic evidence only, not a production-quality estimate or proof of real-world generalization.
 
 The development set still has one taxonomy mismatch, ME-I04 (duplicate_not_independent expected, none actual). The holdout's M34-H-I04 reproduces the same taxonomy gap. Source-group lineage should be distinguished from exact/near duplicate content and from independent corroboration; do not label every pair of passages from one source as duplicated. The next design should consider exposing independence/corroboration as a separate diagnostic field instead of overloading conflict_type.
+
+
+## Follow-up implementation: relation/reason consistency and source lineage (2026-11-14)
+
+### Semantic consistency audit
+
+The semantic joint-entailment path now performs a second bounded Ollama request after the first structured relation response. The audit receives the exact claim, selected evidence passages, proposed relation, and the first response's explanation. It returns a strict boolean consistency decision.
+
+- Only an explicit `consistent=true` permits the semantic assessment to proceed to the existing Python evidence-ID and source-group checks.
+- A false, malformed, ambiguous, timed-out, or failed audit preserves the deterministic baseline (fail-closed).
+- This is a same-model critic pass, not an independent verifier, external proof, or guarantee against correlated model error. It adds one extra model request per eligible claim and therefore increases latency.
+- Mocked tests cover a relation/reason mismatch and verifier failure. Live Qwen evaluation is still required to estimate false acceptance/rejection and latency impact.
+
+### Source lineage is not duplicate content
+
+Claim synthesis now reports `distinct_source_group_count` and `source_lineage_status` separately from `duplicate_groups`. Exact duplicate grouping still requires normalized identical text from the same underlying source. Multiple distinct passages from one source group are reported as a single source group but are not automatically classified as duplicate content. Multiple source groups are a lineage-coverage diagnostic, not proof of true editorial/statistical independence.
+
+The earlier ME-I04 / M34-H-I04 expected `duplicate_not_independent` subtype remains a taxonomy/labeling question; aggregate status remains `insufficient`. Do not change or retune the consumed 24-case holdout. Any future quality claim requires a fresh untouched holdout or real-world labelled documents.
+
+### CI
+
+Head `7edf4ab51a15e952ea0060e2d07fe351dd4800ba`: both GitHub Actions unittest jobs passed, with 191 Python tests per run (2026-11-14). This verifies mocked behavior and regression contracts, not live model quality.
