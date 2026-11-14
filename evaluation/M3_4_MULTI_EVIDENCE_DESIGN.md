@@ -87,3 +87,25 @@ This baseline deliberately does not infer joint entailment from multiple pairwis
 The evaluator now reports claim-status mismatches and conflict-taxonomy mismatches independently. `mismatches` tracks aggregate status; `conflict_type_mismatches` tracks taxonomy labels even when the aggregate status is correct. The 32-case semantic development run previously reported 32/32 status accuracy and macro-F1 1.0, but conflict-type accuracy was 31/32. The initial diagnostic exposed two apparent subtype mismatches. ME-I03 was a development-data metadata error: its expected `condition_mismatch` label was paired with two different `scope` values and no explicit `condition`; the case is corrected to use the same scope and distinct condition fields. After that correction, the remaining subtype mismatch is ME-I04: expected `duplicate_not_independent`, actual `none`, with aggregate status correctly `insufficient`. This identifies a taxonomy behavior gap; it must not be hidden by the perfect status score.
 
 The independent M3.4 holdout contains 24 newly authored cases balanced across supported, contradicted, conflict, and insufficient (6 each). It includes direct and joint entailment/contradiction, source lineage, explicit scope/condition/time differences, weak evidence, and stale current-state evidence. The holdout has not been run against the local model and must remain untouched by further prompt/rule tuning. The latest GitHub Actions run on the current development head passed all 187 Python tests, including evaluator diagnostics, the ME-I03 metadata regression, and holdout integrity. Its synthetic nature means even a perfect result is diagnostic evidence, not proof of real-world generalization.
+
+
+## M3.4 independent holdout evaluation (2026-11-14)
+
+The frozen 24-case holdout has now been executed in both modes. It is therefore a consumed evaluation set: retain the results as a record and do not use these cases to tune prompts or rules. Any next iteration that needs an untouched holdout must author a new independent set.
+
+| Metric | Deterministic | Semantic-assisted |
+|---|---:|---:|
+| Claim status accuracy | 19/24 (79.17%) | 22/24 (91.67%) |
+| Macro-F1 | 0.7931 | 0.9115 |
+| Conflict taxonomy accuracy | 23/24 (95.83%) | 23/24 (95.83%) |
+| Semantic assessments | 0 | 7 |
+| Semantic skipped | 0 | 1 |
+| Semantic unassessed | 0 | 0 |
+
+Semantic mode corrected three deterministic status errors, including three joint-support cases, but left two status mismatches:
+- M34-H-C03: expected contradicted, actual supported. The model's explanation explicitly calculates 48,000 KRW (52,000 + 4,000 - 8,000) against the claimed 80,000 KRW and says the premises contradict the claim, yet the structured relation field is supports. The current implementation validates evidence IDs and source independence but does not validate consistency between the relation enum and its explanation. This is a fail-open semantic-output consistency gap.
+- M34-H-C05: expected contradicted, actual insufficient. The model did not derive the business-day contradiction from the stated Monday-to-following-Tuesday interval. This remains a conservative joint-inference miss; the case's business-day counting convention should be reviewed when designing future evaluation data, not retroactively tuned here.
+
+The deterministic baseline missed five joint-inference cases (S03, S04, S06, C03, C05), which is consistent with its documented non-goal of inferring joint entailment. Semantic mode improved status accuracy by 12.5 percentage points on this small synthetic set. This is diagnostic evidence only, not a production-quality estimate or proof of real-world generalization.
+
+The development set still has one taxonomy mismatch, ME-I04 (duplicate_not_independent expected, none actual). The holdout's M34-H-I04 reproduces the same taxonomy gap. Source-group lineage should be distinguished from exact/near duplicate content and from independent corroboration; do not label every pair of passages from one source as duplicated. The next design should consider exposing independence/corroboration as a separate diagnostic field instead of overloading conflict_type.
