@@ -120,7 +120,7 @@ The semantic joint-entailment path now performs a second bounded Ollama request 
 - Only an explicit `consistent=true` permits the semantic assessment to proceed to the existing Python evidence-ID and source-group checks.
 - A false, malformed, ambiguous, timed-out, or failed audit preserves the deterministic baseline (fail-closed).
 - This is a same-model critic pass, not an independent verifier, external proof, or guarantee against correlated model error. It adds one extra model request per eligible claim and therefore increases latency.
-- Mocked tests cover a relation/reason mismatch and verifier failure. Live Qwen evaluation is still required to estimate false acceptance/rejection and latency impact.
+- Mocked tests cover a relation/reason mismatch and verifier failure. Live Qwen development evaluation after this change retained 32/32 Claim-status accuracy, macro-F1 1.0, and 31/32 conflict-type accuracy; semantic assessment/skips remained 4/2. This shows no regression on the current development set, but does not establish that the verifier detects inconsistent live model responses because the set does not yet contain a dedicated relation/reason-mismatch case. Latency was not included in the supplied evaluation output.
 
 ### Source lineage is not duplicate content
 
@@ -131,3 +131,14 @@ The earlier ME-I04 / M34-H-I04 expected `duplicate_not_independent` subtype rema
 ### CI
 
 Head `7edf4ab51a15e952ea0060e2d07fe351dd4800ba`: both GitHub Actions unittest jobs passed, with 191 Python tests per run (2026-11-14). This verifies mocked behavior and regression contracts, not live model quality.
+
+
+### Live development re-evaluation after consistency audit (2026-11-14)
+
+Command: `python -m evaluation.run_claim_synthesis_evaluation --dataset evaluation/multi_evidence_cases.jsonl --semantic --model qwen3.5:9b --output evaluation/m34_semantic_dev_after_consistency.json`
+
+- Claim status: 32/32 correct; accuracy 1.0; macro-F1 1.0; no status mismatches.
+- Conflict taxonomy: 31/32 correct (0.96875). The only mismatch remains ME-I04: expected `duplicate_not_independent`, actual `none`; aggregate status is correctly `insufficient`.
+- Semantic assessments: 4; skipped: 2; unassessed: 0.
+- Compared with the earlier semantic development run, the aggregate metrics and semantic counters are unchanged. The new audit therefore shows no regression on this development set, but the result does not demonstrate that the audit catches a live relation/reason inconsistency: the set contains no dedicated C03-style mismatch case. Add such a case to future development data, then evaluate against a newly authored untouched holdout. Do not reuse the consumed 24-case holdout.
+- The provided output does not include latency measurements, so no latency conclusion can be drawn from this run.
