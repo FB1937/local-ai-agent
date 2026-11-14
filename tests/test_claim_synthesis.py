@@ -48,6 +48,14 @@ class ClaimSynthesisTests(unittest.TestCase):
         self.assertEqual(result.status, "insufficient")
         self.assertEqual(result.conflict_type, "scope_mismatch")
 
+    def test_explicit_condition_mismatch_is_not_direct_conflict(self):
+        analysis = make_analysis(["supports", "contradicts"])
+        analysis.passages[0].condition = "standard account"
+        analysis.passages[1].condition = "enterprise account"
+        result = synthesize_claim_evidence(analysis).claims[0]
+        self.assertEqual(result.status, "insufficient")
+        self.assertEqual(result.conflict_type, "condition_mismatch")
+
     def test_non_overlapping_valid_times_are_not_direct_conflict(self):
         result = synthesize_claim_evidence(make_analysis(
             ["supports", "contradicts"],

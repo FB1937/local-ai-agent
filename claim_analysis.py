@@ -21,6 +21,7 @@ class InformationNeed(BaseModel):
     required_aspects: list[str] = Field(default_factory=list)
     freshness_required: bool = False
     scope: str | None = None
+    condition: str | None = None
 
 
 class Claim(BaseModel):
@@ -151,6 +152,7 @@ def build_evidence_passages(
                 source_group=source.source_group,
                 canonical_source_id=source.canonical_source_id,
                 scope=source.scope,
+                condition=source.condition,
                 valid_time_start=source.valid_time_start,
                 valid_time_end=source.valid_time_end,
             ))
@@ -237,6 +239,7 @@ def retrieve_claim_evidence_passages(
                     source_group=source.source_group,
                     canonical_source_id=source.canonical_source_id,
                     scope=source.scope,
+                    condition=source.condition,
                     valid_time_start=source.valid_time_start,
                     valid_time_end=source.valid_time_end,
                 ))

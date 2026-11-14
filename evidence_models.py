@@ -26,6 +26,7 @@ class EvidenceSource(BaseModel):
     source_group: str | None = None
     canonical_source_id: str | None = None
     scope: str | None = None
+    condition: str | None = None
     valid_time_start: str | None = None
     valid_time_end: str | None = None
 

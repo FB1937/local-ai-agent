@@ -71,6 +71,10 @@ def _scope_differs(left: EvidencePassage, right: EvidencePassage) -> bool:
     return bool(left.scope and right.scope and left.scope.strip().casefold() != right.scope.strip().casefold())
 
 
+def _condition_differs(left: EvidencePassage, right: EvidencePassage) -> bool:
+    return bool(left.condition and right.condition and left.condition.strip().casefold() != right.condition.strip().casefold())
+
+
 def _duplicate_groups(passages: list[EvidencePassage]) -> list[list[str]]:
     grouped: dict[tuple[str, str], list[str]] = defaultdict(list)
     for passage in passages:
@@ -138,10 +142,14 @@ def _aggregate_one_claim(
             for s_id in supporting for c_id in contradicting
         ]
         scope_mismatches = [_scope_differs(s, c) for s, c in comparisons]
+        condition_mismatches = [_condition_differs(s, c) for s, c in comparisons]
         time_mismatches = [_time_ranges_disjoint(s, c) for s, c in comparisons]
         if all(scope_mismatches):
             status, conflict_type = "insufficient", "scope_mismatch"
             reason = "지지와 반박 구절의 명시적 적용 범위가 달라 직접 충돌로 합치지 않았습니다."
+        elif all(condition_mismatches):
+            status, conflict_type = "insufficient", "condition_mismatch"
+            reason = "지지와 반박 구절의 명시적 전제 조건이 달라 직접 충돌로 합치지 않았습니다."
         elif all(time_mismatches):
             status, conflict_type = "insufficient", "temporal_mismatch"
             reason = "지지와 반박 구절의 명시적 유효 기간이 겹치지 않아 시간적 충돌로 진단했습니다."
