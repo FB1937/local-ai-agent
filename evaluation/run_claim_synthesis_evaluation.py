@@ -24,6 +24,7 @@ def evaluate_dataset(dataset_path: str | Path = DEFAULT_DATASET, *, semantic: bo
     rows = [json.loads(line) for line in Path(dataset_path).read_text(encoding="utf-8").splitlines() if line.strip()]
     confusion = {actual: {predicted: 0 for predicted in LABELS} for actual in LABELS}
     mismatches = []
+    conflict_type_mismatches = []
     conflict_type_correct = 0
     semantic_assessed = semantic_unassessed = semantic_skipped = 0
     for row in rows:
@@ -58,12 +59,22 @@ def evaluate_dataset(dataset_path: str | Path = DEFAULT_DATASET, *, semantic: bo
             semantic_unassessed += semantic_report.unassessed_count
             semantic_skipped += semantic_report.skipped_count
         expected = row["expected_status"]
+        expected_conflict_type = row["expected_conflict_type"]
         confusion[expected][result.status] += 1
-        conflict_type_correct += int(result.conflict_type == row["expected_conflict_type"])
+        if result.conflict_type == expected_conflict_type:
+            conflict_type_correct += 1
+        else:
+            conflict_type_mismatches.append({
+                "case_id": row["case_id"],
+                "expected": expected_conflict_type,
+                "actual": result.conflict_type,
+                "status": result.status,
+                "reason": result.reason,
+            })
         if result.status != expected:
             mismatches.append({
                 "case_id": row["case_id"], "expected": expected, "actual": result.status,
-                "expected_conflict_type": row["expected_conflict_type"],
+                "expected_conflict_type": expected_conflict_type,
                 "actual_conflict_type": result.conflict_type, "reason": result.reason,
             })
 
@@ -83,13 +94,16 @@ def evaluate_dataset(dataset_path: str | Path = DEFAULT_DATASET, *, semantic: bo
         "total": total, "correct": correct,
         "accuracy": correct / total if total else 0.0,
         "macro_f1": sum(f1_values) / len(f1_values) if f1_values else 0.0,
+        "conflict_type_correct": conflict_type_correct,
         "conflict_type_accuracy": conflict_type_correct / total if total else 0.0,
-        "per_class": per_class, "confusion_matrix": confusion, "mismatches": mismatches,
+        "per_class": per_class, "confusion_matrix": confusion,
+        "mismatches": mismatches,
+        "conflict_type_mismatches": conflict_type_mismatches,
         "mode": "semantic_assisted" if semantic else "deterministic",
         "semantic_assessed_count": semantic_assessed,
         "semantic_unassessed_count": semantic_unassessed,
         "semantic_skipped_count": semantic_skipped,
-        "note": ("Synthetic diagnostic only. Semantic mode calls the local model only for deterministic-insufficient claims with at least two non-duplicate passages from distinct canonical source groups. Invalid output or model failures preserve the deterministic verdict; this is not a production-quality estimate." if semantic else "Synthetic diagnostic only. Joint entailment from multiple pairwise-insufficient passages is intentionally not inferred by the deterministic baseline."),
+        "note": ("Synthetic diagnostic only. Claim status and conflict taxonomy are scored separately. Semantic mode calls the local model only for deterministic-insufficient claims with at least two non-duplicate passages from distinct canonical source groups. Invalid output or model failures preserve the deterministic verdict; this is not a production-quality estimate." if semantic else "Synthetic diagnostic only. Claim status and conflict taxonomy are scored separately. Joint entailment from multiple pairwise-insufficient passages is intentionally not inferred by the deterministic baseline."),
     }
 
 
