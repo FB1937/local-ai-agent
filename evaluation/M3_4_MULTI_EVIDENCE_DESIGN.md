@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-Design and labelled diagnostic dataset only. This document does not claim that aggregation code or Agent-pipeline integration is implemented. Work is confined to the existing M3 PR branch; `main` is not changed and PR #14 remains Draft.
+Design, labelled diagnostic dataset, and an initial deterministic aggregation baseline are implemented on the existing M3 PR branch. Semantic joint-entailment/conflict diagnosis and Agent-pipeline integration remain pending. `main` is not changed and PR #14 remains Draft.
 
 ## Problem
 
@@ -57,14 +57,20 @@ Keep the M3.3 24-case holdout untouched. Do not tune M3.4 prompts or rules on th
 
 ## Implementation sequence
 
-1. Freeze and review the data contract and labelled cases.
-2. Add Pydantic aggregate result contracts with provenance.
-3. Implement deterministic prechecks for missing judgments, duplicate identity, and explicit scope/time metadata.
-4. Use an LLM only where semantic comparison of claim/evidence scopes or joint entailment is needed; request structured explanations with evidence IDs.
-5. Keep deterministic policy responsible for applying the final status and fail-closed behavior.
-6. Add unit tests for each taxonomy boundary and regression tests for M3.3.
-7. Run local Qwen 3.5 9B evaluation and inspect every error, not just the aggregate score.
-8. Integrate into the Agent response pipeline only after standalone behavior is stable.
+- [x] Freeze and review the data contract and 32 labelled cases.
+- [x] Add Pydantic aggregate result contracts with evidence provenance.
+- [x] Implement deterministic prechecks for missing judgments, duplicate identity, and explicit scope/time/condition metadata.
+- [x] Add unit tests for direct conflict, scope/condition/time mismatch, duplicates, missing judgments, no evidence, and no-majority behavior.
+- [ ] Use an LLM only where semantic comparison of claim/evidence scopes or joint entailment is needed; request structured explanations with evidence IDs.
+- [ ] Keep deterministic policy responsible for applying the final status and fail-closed behavior after semantic diagnosis.
+- [ ] Run local Qwen 3.5 9B evaluation and inspect every error, not just the aggregate score.
+- [ ] Integrate into the Agent response pipeline only after standalone behavior is stable.
+
+## Current deterministic baseline
+
+`claim_synthesis.py` adds `synthesize_claim_evidence()` and separate `ClaimEvidenceSynthesis` / `ClaimSynthesisReport` contracts. It preserves pairwise links, returns `unassessed` when a link is missing or unjudged, and never uses majority voting. A direct support/contradiction pair remains `conflict` unless all cross-pairs have explicit scope, condition, or valid-time mismatches. Duplicate passages are grouped by canonical source/source group plus normalized exact text; duplicates do not inflate independent-source counts. A single valid support remains support even when repeated passages are duplicates.
+
+This baseline deliberately does not infer joint entailment from multiple pairwise `insufficient` labels. Dataset case ME-S08 is a labelled example for the pending semantic synthesis layer. Nor does it infer near-duplicate content, source authority, or freshness from publication date alone.
 
 ## Non-goals
 
