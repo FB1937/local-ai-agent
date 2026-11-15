@@ -142,3 +142,23 @@ Command: `python -m evaluation.run_claim_synthesis_evaluation --dataset evaluati
 - Semantic assessments: 4; skipped: 2; unassessed: 0.
 - Compared with the earlier semantic development run, the aggregate metrics and semantic counters are unchanged. The new audit therefore shows no regression on this development set, but the result does not demonstrate that the audit catches a live relation/reason inconsistency: the set contains no dedicated C03-style mismatch case. Add such a case to future development data, then evaluate against a newly authored untouched holdout. Do not reuse the consumed 24-case holdout.
 - The provided output does not include latency measurements, so no latency conclusion can be drawn from this run.
+
+
+## Targeted live consistency-audit diagnostic (2026-11-15)
+
+A separate evaluator, `evaluation/run_consistency_audit_evaluation.py`, isolates the second-pass relation/reason auditor from the first-pass analyst. It sends five controlled Korean cases directly to the configured Ollama model:
+
+- C03-style mismatch: structured `supports`, but the explanation calculates 48,000 KRW against a claimed 80,000 KRW and explicitly says the claim is contradicted (expected reject).
+- Reverse mismatch: structured `contradicts`, but the explanation says the calculated amount matches the claim (expected reject).
+- Ambiguous explanation with an unsupported `supports` verdict (expected reject).
+- Coherent contradiction and coherent support controls (expected accept).
+
+The report records false accepts, false rejections, request errors, and per-case latency plus mean/median/max latency. Errors count as incorrect and remain fail-closed. This is a targeted diagnostic fixture, not a replacement for the aggregate development dataset and not a statistical benchmark. It deliberately does not modify or reuse the consumed 24-case holdout. The same-model critic limitation remains: a second pass can share correlated errors with the first pass.
+
+Run locally from the repository root:
+
+```powershell
+python -m evaluation.run_consistency_audit_evaluation --model qwen3.5:9b --output evaluation/consistency_audit_result.json
+```
+
+The live result must be reviewed before drawing conclusions about the verifier's false-accept/rejection behavior or latency. The fixture's expected labels are manually authored and should be reviewed if its wording or evidence is changed.
