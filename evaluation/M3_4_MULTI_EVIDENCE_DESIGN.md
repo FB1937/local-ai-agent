@@ -178,3 +178,23 @@ This is a design simplification, not evidence of improved live model quality. Re
 The user ran the five targeted cases with Qwen3.5:9b at `num_predict=32`: all 5 completed with valid JSON and `done_reason=stop`; accuracy was 4/5 (0.80), with one false accept on `AUDIT-MISMATCH-CONTRADICTS`. The explanation explicitly said the computed 48,000 KRW supports the 48,000 KRW claim, while the proposed structured relation was `contradicts`; the boolean auditor accepted it. No false rejections or parse errors occurred. The normal contradiction control passed 5/5 repeated runs (accuracy 1.0; mean latency 2.22s, median 2.21s, max 2.27s). The five-case run mean latency was 2.97s, median 2.31s, max 5.61s. This is a small manually authored diagnostic, not a benchmark.
 
 The next iteration replaces the opaque boolean response with a strict `reason_relation` enum (`supports`, `contradicts`, `unclear`). The model classifies only the conclusion stated in the analyst explanation; Python compares that value with the original structured relation. Ambiguous or invalid values fail closed. This exposes the intermediate classification but does not eliminate model misclassification or same-model correlated errors. Validate both mismatch directions, ambiguity, and coherent controls, then create a fresh independent diagnostic set. Do not tune against the consumed M3.4 holdout.
+
+
+## Live relation-classification diagnostic result (2026-11-18)
+
+After replacing the boolean audit output with the explicit `reason_relation` enum, the user ran the five targeted fixtures locally with Qwen3.5:9b and `num_predict=32`:
+
+| Metric | Result |
+|---|---:|
+| Completed | 5/5 |
+| Correct decisions | 5/5 (100%) |
+| False accepts | 0 |
+| False rejections | 0 |
+| Execution / parse errors | 0 |
+| Mean latency | 2,944.16 ms |
+| Median latency | 2,419.96 ms |
+| Maximum latency | 5,040.81 ms |
+
+Both relation/reason mismatch directions and the ambiguous explanation were rejected; the coherent contradiction and support controls were accepted. All five Ollama responses ended with `done_reason=stop`; generated output lengths were 13–15 tokens, below the 32-token cap.
+
+This is a five-case, single-repeat manually authored diagnostic, not a statistical benchmark and not evidence of production generalization. The verifier still uses the same model family as the first-pass analyst, so correlated errors remain possible. The consumed M3.4 24-case holdout was not reused. The next validation is to repeat the five targeted cases (for example, `--repeat 5`) and run the complete mocked regression suite/CI; any new quality claim will still require a fresh untouched evaluation set or labelled real-world data.
