@@ -128,6 +128,7 @@ def evaluate(
     case_ids: list[str] | None = None,
     repeat: int = 1,
     request_fn=None,
+    num_predict: int = 160,
 ) -> dict:
     if repeat < 1:
         raise ValueError("repeat must be at least 1")
@@ -147,6 +148,9 @@ def evaluate(
                     content = message.get("content")
                     if isinstance(content, str):
                         captured["message_content"] = content
+                    for key in ("done_reason", "eval_count", "prompt_eval_count", "total_duration", "eval_duration"):
+                        if key in body:
+                            captured[key] = body[key]
                 except Exception as capture_exc:
                     captured["capture_error"] = (
                         f"{type(capture_exc).__name__}: {capture_exc}"
@@ -168,6 +172,7 @@ def evaluate(
                     evidence=EVIDENCE,
                     relation=case["relation"],
                     analyst_reason=case["analyst_reason"],
+                    num_predict=num_predict,
                 )
                 decision = "consistent" if consistent else "inconsistent"
                 error = None
@@ -191,6 +196,11 @@ def evaluate(
                 "latency_ms": round(elapsed_ms, 2),
                 "verifier_reason": reason,
                 "error": error,
+                "ollama": {
+                    key: captured[key]
+                    for key in ("done_reason", "eval_count", "prompt_eval_count", "total_duration", "eval_duration")
+                    if key in captured
+                },
             }
             if diagnostics:
                 result["error_diagnostics"] = diagnostics
@@ -209,6 +219,7 @@ def evaluate(
     errors = sum(item["decision"] == "error" for item in results)
     return {
         "model": model,
+        "num_predict": num_predict,
         "unique_case_count": len(selected_cases),
         "repeat_count": repeat,
         "case_count": len(results),
@@ -242,6 +253,10 @@ def main() -> None:
     parser.add_argument("--ollama-url", default=None)
     parser.add_argument("--timeout", type=int, default=90)
     parser.add_argument(
+        "--num-predict", type=int, default=160,
+        help="Maximum generated tokens for the auditor response (default: 160).",
+    )
+    parser.add_argument(
         "--case-id", action="append", dest="case_ids",
         help="Run only this case ID; may be supplied more than once.",
     )
@@ -254,6 +269,8 @@ def main() -> None:
 
     if args.repeat < 1:
         parser.error("--repeat must be at least 1")
+    if args.num_predict < 1:
+        parser.error("--num-predict must be at least 1")
     try:
         selected_cases = select_cases(args.case_ids)
     except ValueError as exc:
@@ -269,6 +286,7 @@ def main() -> None:
         timeout=args.timeout,
         case_ids=[case["case_id"] for case in selected_cases],
         repeat=args.repeat,
+        num_predict=args.num_predict,
     )
     rendered = json.dumps(report, ensure_ascii=False, indent=2)
     print(rendered)

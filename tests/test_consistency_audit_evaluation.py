@@ -104,6 +104,36 @@ class ConsistencyAuditEvaluationFixtureTests(unittest.TestCase):
         self.assertEqual(diagnostics["raw_output_excerpt"], raw)
         self.assertGreaterEqual(diagnostics["json_line"], 1)
 
+    def test_ollama_completion_metadata_is_captured(self):
+        def fake_request(*args, **kwargs):
+            response = _FakeResponse(json.dumps({
+                "consistent": True,
+                "reason": "관계와 설명이 일치합니다.",
+            }, ensure_ascii=False))
+            response.json = lambda: {
+                "message": {"content": response.content},
+                "done_reason": "stop",
+                "eval_count": 42,
+                "prompt_eval_count": 180,
+                "total_duration": 9000000,
+                "eval_duration": 3000000,
+            }
+            return response
+
+        report = evaluate(
+            model="test-model",
+            ollama_url="http://localhost:11434",
+            timeout=1,
+            case_ids=["AUDIT-CONTROL-SUPPORTS"],
+            request_fn=fake_request,
+            num_predict=320,
+        )
+        result = report["results"][0]
+        self.assertEqual(report["num_predict"], 320)
+        self.assertEqual(result["ollama"]["done_reason"], "stop")
+        self.assertEqual(result["ollama"]["eval_count"], 42)
+        self.assertEqual(result["ollama"]["prompt_eval_count"], 180)
+
     def test_repeat_must_be_positive(self):
         with self.assertRaisesRegex(ValueError, "repeat must be at least 1"):
             evaluate(

@@ -123,7 +123,7 @@ Return exactly: consistent (boolean), reason (short string)."""
 def _verify_relation_reason_consistency(
     request_fn, *, base_url: str, model_name: str, timeout: int,
     claim_id: str, claim_text: str, evidence: list[dict],
-    relation: str, analyst_reason: str,
+    relation: str, analyst_reason: str, num_predict: int = 160,
 ) -> tuple[bool, str]:
     payload = {
         "claim_id": claim_id, "claim": claim_text, "evidence": evidence,
@@ -133,7 +133,7 @@ def _verify_relation_reason_consistency(
     response = request_fn(
         f"{base_url}/api/chat",
         json={"model": model_name, "stream": False, "format": "json", "think": False,
-              "options": {"temperature": 0, "num_predict": 160},
+              "options": {"temperature": 0, "num_predict": num_predict},
               "messages": [{"role": "system", "content": _CONSISTENCY_SYSTEM},
                            {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]},
         timeout=timeout,
@@ -222,6 +222,7 @@ def synthesize_claim_evidence_semantically(
                     "valid_time_start": p.valid_time_start, "valid_time_end": p.valid_time_end,
                 } for p in selected],
                 relation=relation, analyst_reason=analyst_reason,
+                num_predict=160,
             )
             if not consistency_ok:
                 raise ValueError("verdict/reason consistency audit rejected result: " + consistency_reason)
