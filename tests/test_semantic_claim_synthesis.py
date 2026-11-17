@@ -21,10 +21,10 @@ def sample():
     )
 
 class SemanticSynthesisTests(unittest.TestCase):
-    def respond(self, payload, *, consistent=True):
+    def respond(self, payload, *, reason_relation="supports"):
         return Mock(side_effect=[
             FakeResponse(json.dumps(payload, ensure_ascii=False)),
-            FakeResponse(json.dumps({"consistent": consistent})),
+            FakeResponse(json.dumps({"reason_relation": reason_relation})),
         ])
     def test_joint_support_upgrade_preserves_pairwise_links(self):
         analysis=sample(); before=[x.model_dump() for x in analysis.links]
@@ -40,8 +40,8 @@ class SemanticSynthesisTests(unittest.TestCase):
         audit_payload = request.call_args_list[1].kwargs["json"]
         self.assertEqual(audit_payload["format"], {
             "type": "object",
-            "properties": {"consistent": {"type": "boolean"}},
-            "required": ["consistent"],
+            "properties": {"reason_relation": {"type": "string", "enum": ["supports", "contradicts", "unclear"]}},
+            "required": ["reason_relation"],
             "additionalProperties": False,
         })
         self.assertEqual(audit_payload["options"]["num_predict"], 32)
@@ -108,12 +108,31 @@ class SemanticSynthesisTests(unittest.TestCase):
         request = self.respond({
             "relation": "supports", "evidence_ids": ["E1", "E2"],
             "reason": "계산 결과 48,000원으로 주장된 80,000원과 다릅니다.",
-        }, consistent=False)
+        }, reason_relation="contradicts")
         result, report = synthesize_claim_evidence_semantically(sample(), request_fn=request)
         self.assertEqual(result.claims[0].status, "insufficient")
         self.assertEqual(report.unassessed_count, 1)
         self.assertEqual(report.assessed_count, 0)
         self.assertEqual(request.call_count, 2)
+
+    def test_reverse_relation_reason_mismatch_fails_closed(self):
+        request = self.respond({
+            "relation": "contradicts", "evidence_ids": ["E1", "E2"],
+            "reason": "계산 결과가 주장과 일치하므로 주장을 지지합니다.",
+        }, reason_relation="supports")
+        result, report = synthesize_claim_evidence_semantically(sample(), request_fn=request)
+        self.assertEqual(result.claims[0].status, "insufficient")
+        self.assertEqual(report.unassessed_count, 1)
+        self.assertEqual(request.call_count, 2)
+
+    def test_unclear_reason_fails_closed(self):
+        request = self.respond({
+            "relation": "supports", "evidence_ids": ["E1", "E2"],
+            "reason": "관련된 정보가 여러 개 있습니다.",
+        }, reason_relation="unclear")
+        result, report = synthesize_claim_evidence_semantically(sample(), request_fn=request)
+        self.assertEqual(result.claims[0].status, "insufficient")
+        self.assertEqual(report.unassessed_count, 1)
 
     def test_consistency_verifier_rejects_extra_output_fields(self):
         request = Mock(side_effect=[
@@ -121,7 +140,7 @@ class SemanticSynthesisTests(unittest.TestCase):
                 "relation": "supports", "evidence_ids": ["E1", "E2"],
                 "reason": "월과 첫날 규칙을 결합함",
             }, ensure_ascii=False)),
-            FakeResponse(json.dumps({"consistent": True, "reason": "extra"})),
+            FakeResponse(json.dumps({"reason_relation": "supports", "extra": "field"})),
         ])
         result, report = synthesize_claim_evidence_semantically(sample(), request_fn=request)
         self.assertEqual(result.claims[0].status, "insufficient")

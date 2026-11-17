@@ -64,7 +64,7 @@ class ConsistencyAuditEvaluationFixtureTests(unittest.TestCase):
         def fake_request(*args, **kwargs):
             calls.append(1)
             return _FakeResponse(json.dumps({
-                "consistent": True,
+                "reason_relation": "supports",
             }, ensure_ascii=False))
 
         report = evaluate(
@@ -86,7 +86,7 @@ class ConsistencyAuditEvaluationFixtureTests(unittest.TestCase):
         self.assertEqual(report["num_predict"], 32)
 
     def test_json_parse_error_captures_bounded_raw_output(self):
-        raw = '{"consistent": true,\n "reason": "unterminated'
+        raw = '{"reason_relation": "supports",\n "reason": "unterminated'
         def fake_request(*args, **kwargs):
             return _FakeResponse(raw)
 
@@ -107,7 +107,7 @@ class ConsistencyAuditEvaluationFixtureTests(unittest.TestCase):
     def test_ollama_completion_metadata_is_captured(self):
         def fake_request(*args, **kwargs):
             response = _FakeResponse(json.dumps({
-                "consistent": True,
+                "reason_relation": "supports",
             }, ensure_ascii=False))
             response.json = lambda: {
                 "message": {"content": response.content},
