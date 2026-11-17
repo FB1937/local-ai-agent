@@ -65,7 +65,6 @@ class ConsistencyAuditEvaluationFixtureTests(unittest.TestCase):
             calls.append(1)
             return _FakeResponse(json.dumps({
                 "consistent": True,
-                "reason": "구조화 관계와 설명이 일치합니다.",
             }, ensure_ascii=False))
 
         report = evaluate(
@@ -84,6 +83,7 @@ class ConsistencyAuditEvaluationFixtureTests(unittest.TestCase):
             [1, 2],
         )
         self.assertEqual(report["accuracy_including_errors_as_incorrect"], 1.0)
+        self.assertEqual(report["num_predict"], 32)
 
     def test_json_parse_error_captures_bounded_raw_output(self):
         raw = '{"consistent": true,\n "reason": "unterminated'
@@ -108,7 +108,6 @@ class ConsistencyAuditEvaluationFixtureTests(unittest.TestCase):
         def fake_request(*args, **kwargs):
             response = _FakeResponse(json.dumps({
                 "consistent": True,
-                "reason": "관계와 설명이 일치합니다.",
             }, ensure_ascii=False))
             response.json = lambda: {
                 "message": {"content": response.content},

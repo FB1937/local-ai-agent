@@ -128,7 +128,7 @@ def evaluate(
     case_ids: list[str] | None = None,
     repeat: int = 1,
     request_fn=None,
-    num_predict: int = 160,
+    num_predict: int = 32,
 ) -> dict:
     if repeat < 1:
         raise ValueError("repeat must be at least 1")
@@ -253,8 +253,8 @@ def main() -> None:
     parser.add_argument("--ollama-url", default=None)
     parser.add_argument("--timeout", type=int, default=90)
     parser.add_argument(
-        "--num-predict", type=int, default=160,
-        help="Maximum generated tokens for the auditor response (default: 160).",
+        "--num-predict", type=int, default=32,
+        help="Maximum generated tokens for the compact JSON auditor response (default: 32).",
     )
     parser.add_argument(
         "--case-id", action="append", dest="case_ids",

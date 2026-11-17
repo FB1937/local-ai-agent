@@ -162,3 +162,12 @@ python -m evaluation.run_consistency_audit_evaluation --model qwen3.5:9b --outpu
 ```
 
 The live result must be reviewed before drawing conclusions about the verifier's false-accept/rejection behavior or latency. The fixture's expected labels are manually authored and should be reviewed if its wording or evidence is changed.
+
+
+## Consistency-audit output simplification (2026-11-18)
+
+The live targeted diagnostic showed that the normal contradiction control repeatedly exhausted the Ollama output budget: 5/5 runs at `num_predict=160` and 5/5 at `num_predict=320` ended with `done_reason=length` and malformed JSON. The generated text repeatedly reconsidered its own verdict instead of completing the response. Increasing the token budget therefore increased latency without resolving the output-contract failure.
+
+The second-pass auditor is narrowed to its actual responsibility: compare the first-pass `proposed_relation` with the conclusion stated in `analyst_reason`; it no longer independently re-analyzes the evidence. Its response contract is now exactly `{"consistent": true|false}`, enforced through Ollama's JSON Schema `format` and strict Python key/type validation. The production token budget and targeted evaluator default are reduced to 32. A relation of `insufficient` does not require a second-pass audit because it cannot trigger a semantic upgrade. The first-pass evidence reasoning, evidence-ID validation, distinct-source-group guard, and fail-closed deterministic fallback remain unchanged.
+
+This is a design simplification, not evidence of improved live model quality. Re-run all five targeted cases and repeat the contradiction control locally; report parse/error rate, false accepts/rejections, `done_reason`, token counts, and latency. The same-model critic limitation remains, and the consumed M3.4 holdout must not be reused for tuning.

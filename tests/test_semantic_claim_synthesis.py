@@ -24,7 +24,7 @@ class SemanticSynthesisTests(unittest.TestCase):
     def respond(self, payload, *, consistent=True):
         return Mock(side_effect=[
             FakeResponse(json.dumps(payload, ensure_ascii=False)),
-            FakeResponse(json.dumps({"consistent": consistent, "reason": "relation and reason agree"})),
+            FakeResponse(json.dumps({"consistent": consistent})),
         ])
     def test_joint_support_upgrade_preserves_pairwise_links(self):
         analysis=sample(); before=[x.model_dump() for x in analysis.links]
@@ -36,6 +36,15 @@ class SemanticSynthesisTests(unittest.TestCase):
         self.assertEqual(result.claims[0].insufficient_evidence_ids,["E1","E2"])
         self.assertEqual(report.assessed_count,1)
         self.assertEqual([x.model_dump() for x in analysis.links],before)
+        audit_payload = request.call_args_list[1].kwargs["json"]
+        self.assertEqual(audit_payload["format"], {
+            "type": "object",
+            "properties": {"consistent": {"type": "boolean"}},
+            "required": ["consistent"],
+            "additionalProperties": False,
+        })
+        self.assertEqual(audit_payload["options"]["num_predict"], 32)
+        self.assertNotIn("reason", json.loads(audit_payload["messages"][1]["content"]))
     def test_same_source_group_with_different_passages_is_not_independent(self):
         analysis = sample()
         analysis.passages[0].source_group = "same-article"
@@ -104,6 +113,18 @@ class SemanticSynthesisTests(unittest.TestCase):
         self.assertEqual(report.unassessed_count, 1)
         self.assertEqual(report.assessed_count, 0)
         self.assertEqual(request.call_count, 2)
+
+    def test_consistency_verifier_rejects_extra_output_fields(self):
+        request = Mock(side_effect=[
+            FakeResponse(json.dumps({
+                "relation": "supports", "evidence_ids": ["E1", "E2"],
+                "reason": "월과 첫날 규칙을 결합함",
+            }, ensure_ascii=False)),
+            FakeResponse(json.dumps({"consistent": True, "reason": "extra"})),
+        ])
+        result, report = synthesize_claim_evidence_semantically(sample(), request_fn=request)
+        self.assertEqual(result.claims[0].status, "insufficient")
+        self.assertEqual(report.unassessed_count, 1)
 
     def test_consistency_verifier_failure_preserves_baseline(self):
         request = Mock(side_effect=[
