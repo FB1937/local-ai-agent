@@ -12,6 +12,8 @@ import statistics
 import time
 from pathlib import Path
 
+import requests
+
 from semantic_claim_synthesis import _verify_relation_reason_consistency
 
 
@@ -77,42 +79,122 @@ EVIDENCE = [
     },
 ]
 
+_RAW_OUTPUT_LIMIT = 800
 
-def evaluate(*, model: str, ollama_url: str, timeout: int) -> dict:
-    results = []
-    for case in CASES:
-        started = time.perf_counter()
-        try:
-            consistent, reason = _verify_relation_reason_consistency(
-                __import__("requests").post,
-                base_url=ollama_url,
-                model_name=model,
-                timeout=timeout,
-                claim_id="C1",
-                claim_text=case["claim"],
-                evidence=EVIDENCE,
-                relation=case["relation"],
-                analyst_reason=case["analyst_reason"],
-            )
-            decision = "consistent" if consistent else "inconsistent"
-            error = None
-        except Exception as exc:
-            decision = "error"
-            reason = ""
-            error = f"{type(exc).__name__}: {exc}"
-        elapsed_ms = (time.perf_counter() - started) * 1000
-        results.append({
-            "case_id": case["case_id"],
-            "purpose": case["purpose"],
-            "expected_consistent": case["expected_consistent"],
-            "decision": decision,
-            "correct": (
-                decision == ("consistent" if case["expected_consistent"] else "inconsistent")
-            ),
-            "latency_ms": round(elapsed_ms, 2),
-            "verifier_reason": reason,
-            "error": error,
+
+def select_cases(case_ids: list[str] | None = None) -> list[dict]:
+    """Return requested fixtures, preserving canonical fixture order."""
+    if not case_ids:
+        return list(CASES)
+    requested = set(case_ids)
+    known = {case["case_id"] for case in CASES}
+    unknown = requested - known
+    if unknown:
+        raise ValueError(f"unknown case_id(s): {', '.join(sorted(unknown))}")
+    return [case for case in CASES if case["case_id"] in requested]
+
+
+def _error_diagnostics(exc: Exception, captured: dict) -> dict:
+    details = {
+        "error_type": type(exc).__name__,
+        "error_message": str(exc)[:500],
+    }
+    if isinstance(exc, json.JSONDecodeError):
+        details.update({
+            "json_line": exc.lineno,
+            "json_column": exc.colno,
+            "json_position": exc.pos,
         })
+    raw = captured.get("message_content")
+    if isinstance(raw, str):
+        details["raw_output_length"] = len(raw)
+        details["raw_output_excerpt"] = raw[:_RAW_OUTPUT_LIMIT]
+        if len(raw) > _RAW_OUTPUT_LIMIT:
+            details["raw_output_truncated"] = True
+    elif captured.get("response_text"):
+        response_text = captured["response_text"]
+        details["raw_response_excerpt"] = response_text[:_RAW_OUTPUT_LIMIT]
+        details["raw_response_length"] = len(response_text)
+    if captured.get("capture_error"):
+        details["capture_error"] = captured["capture_error"][:300]
+    return details
+
+
+def evaluate(
+    *,
+    model: str,
+    ollama_url: str,
+    timeout: int,
+    case_ids: list[str] | None = None,
+    repeat: int = 1,
+    request_fn=None,
+) -> dict:
+    if repeat < 1:
+        raise ValueError("repeat must be at least 1")
+    selected_cases = select_cases(case_ids)
+    requester = request_fn or requests.post
+    results = []
+
+    for repeat_index in range(1, repeat + 1):
+        for case in selected_cases:
+            captured = {}
+
+            def capture_request(*args, **kwargs):
+                response = requester(*args, **kwargs)
+                try:
+                    body = response.json()
+                    message = body.get("message") or {}
+                    content = message.get("content")
+                    if isinstance(content, str):
+                        captured["message_content"] = content
+                except Exception as capture_exc:
+                    captured["capture_error"] = (
+                        f"{type(capture_exc).__name__}: {capture_exc}"
+                    )
+                    response_text = getattr(response, "text", "")
+                    if isinstance(response_text, str):
+                        captured["response_text"] = response_text
+                return response
+
+            started = time.perf_counter()
+            try:
+                consistent, reason = _verify_relation_reason_consistency(
+                    capture_request,
+                    base_url=ollama_url,
+                    model_name=model,
+                    timeout=timeout,
+                    claim_id="C1",
+                    claim_text=case["claim"],
+                    evidence=EVIDENCE,
+                    relation=case["relation"],
+                    analyst_reason=case["analyst_reason"],
+                )
+                decision = "consistent" if consistent else "inconsistent"
+                error = None
+                diagnostics = None
+            except Exception as exc:
+                decision = "error"
+                reason = ""
+                error = f"{type(exc).__name__}: {exc}"
+                diagnostics = _error_diagnostics(exc, captured)
+
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            result = {
+                "case_id": case["case_id"],
+                "repeat_index": repeat_index,
+                "purpose": case["purpose"],
+                "expected_consistent": case["expected_consistent"],
+                "decision": decision,
+                "correct": (
+                    decision == ("consistent" if case["expected_consistent"] else "inconsistent")
+                ),
+                "latency_ms": round(elapsed_ms, 2),
+                "verifier_reason": reason,
+                "error": error,
+            }
+            if diagnostics:
+                result["error_diagnostics"] = diagnostics
+            results.append(result)
 
     completed = [item for item in results if item["decision"] != "error"]
     latencies = [item["latency_ms"] for item in results]
@@ -127,6 +209,8 @@ def evaluate(*, model: str, ollama_url: str, timeout: int) -> dict:
     errors = sum(item["decision"] == "error" for item in results)
     return {
         "model": model,
+        "unique_case_count": len(selected_cases),
+        "repeat_count": repeat,
         "case_count": len(results),
         "completed_count": len(completed),
         "correct_count": sum(item["correct"] for item in results),
@@ -147,6 +231,7 @@ def evaluate(*, model: str, ollama_url: str, timeout: int) -> dict:
             "The same model family may share correlated errors with the first-pass analyst.",
             "The evidence arithmetic is intentionally simple and does not test broad reasoning quality.",
             "Errors are fail-closed and counted as incorrect for aggregate accuracy.",
+            "Raw model output is truncated to 800 characters in error diagnostics.",
         ],
     }
 
@@ -156,14 +241,35 @@ def main() -> None:
     parser.add_argument("--model", default=None)
     parser.add_argument("--ollama-url", default=None)
     parser.add_argument("--timeout", type=int, default=90)
+    parser.add_argument(
+        "--case-id", action="append", dest="case_ids",
+        help="Run only this case ID; may be supplied more than once.",
+    )
+    parser.add_argument(
+        "--repeat", type=int, default=1,
+        help="Repeat the selected case set N times (default: 1).",
+    )
     parser.add_argument("--output", default="evaluation/consistency_audit_result.json")
     args = parser.parse_args()
+
+    if args.repeat < 1:
+        parser.error("--repeat must be at least 1")
+    try:
+        selected_cases = select_cases(args.case_ids)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     import os
 
     model = args.model or os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
     ollama_url = (args.ollama_url or os.getenv("OLLAMA_URL", "http://localhost:11434")).rstrip("/")
-    report = evaluate(model=model, ollama_url=ollama_url, timeout=args.timeout)
+    report = evaluate(
+        model=model,
+        ollama_url=ollama_url,
+        timeout=args.timeout,
+        case_ids=[case["case_id"] for case in selected_cases],
+        repeat=args.repeat,
+    )
     rendered = json.dumps(report, ensure_ascii=False, indent=2)
     print(rendered)
     output = Path(args.output)
