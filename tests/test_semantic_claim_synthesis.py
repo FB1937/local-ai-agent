@@ -28,9 +28,10 @@ class SemanticSynthesisTests(unittest.TestCase):
         ])
     def test_joint_support_upgrade_preserves_pairwise_links(self):
         analysis=sample(); before=[x.model_dump() for x in analysis.links]
-        result, report=synthesize_claim_evidence_semantically(analysis, request_fn=self.respond({
+        request = self.respond({
             "relation":"supports","evidence_ids":["E1","E2"],"reason":"월과 첫날 규칙을 결합함"
-        }))
+        })
+        result, report=synthesize_claim_evidence_semantically(analysis, request_fn=request)
         self.assertEqual(result.claims[0].status,"supported")
         self.assertEqual(result.claims[0].joint_supporting_evidence_ids,["E1","E2"])
         self.assertEqual(result.claims[0].insufficient_evidence_ids,["E1","E2"])
