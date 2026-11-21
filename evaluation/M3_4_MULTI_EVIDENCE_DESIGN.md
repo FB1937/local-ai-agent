@@ -198,3 +198,25 @@ After replacing the boolean audit output with the explicit `reason_relation` enu
 Both relation/reason mismatch directions and the ambiguous explanation were rejected; the coherent contradiction and support controls were accepted. All five Ollama responses ended with `done_reason=stop`; generated output lengths were 13–15 tokens, below the 32-token cap.
 
 This is a five-case, single-repeat manually authored diagnostic, not a statistical benchmark and not evidence of production generalization. The verifier still uses the same model family as the first-pass analyst, so correlated errors remain possible. The consumed M3.4 24-case holdout was not reused. The next validation is to repeat the five targeted cases (for example, `--repeat 5`) and run the complete mocked regression suite/CI; any new quality claim will still require a fresh untouched evaluation set or labelled real-world data.
+
+
+## Live consistency-audit repeat evaluation (user-run, 2026-11-21)
+
+Using `qwen3.5:9b`, `num_predict=32`, and `--repeat 5`, the five manually authored diagnostic fixtures were each executed five times (25 total calls).
+
+| Metric | Result |
+|---|---:|
+| Completed | 25/25 |
+| Correct decisions | 25/25 (100%) |
+| False accepts | 0 |
+| False rejections | 0 |
+| Execution / parse errors | 0 |
+| Mean latency | 2,829.65 ms |
+| Median latency | 2,435.99 ms |
+| Maximum latency | 12,103.98 ms |
+
+Each of the five fixtures produced the expected decision on all five repetitions: both mismatch directions and the ambiguous explanation were rejected; coherent contradiction and support controls were accepted. All responses ended with `done_reason=stop`; generated output lengths were 13–15 tokens, below the 32-token cap.
+
+The maximum latency came from the first request (12.10 s); the other 24 requests were approximately 2.40–2.52 s. This may reflect model/runtime warm-up, but the cause is not established by this run.
+
+Interpretation: the enum-based consistency auditor is repeatable on these five targeted fixtures under the tested local configuration. This is not a statistical benchmark, a broad reasoning-quality evaluation, or evidence of production generalization. The same model family is used for analysis and audit, so correlated errors remain possible. The consumed M3.4 holdout was not reused. A fresh untouched evaluation set or labelled real-world cases are required for broader quality claims.
