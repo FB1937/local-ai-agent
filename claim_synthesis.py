@@ -202,12 +202,19 @@ def synthesize_claim_evidence(
     is grouped for independence reporting, but a single valid supporting passage
     remains support; duplication only prevents inflated corroboration counts.
     """
-    parsed = analysis if isinstance(analysis, ClaimAnalysisResult) else ClaimAnalysisResult.model_validate(analysis)
+    raw_analysis = analysis.model_dump() if isinstance(analysis, ClaimAnalysisResult) else analysis
+    parsed = ClaimAnalysisResult.model_validate(raw_analysis)
     links = reasoning_links if reasoning_links is not None else parsed.links
     normalized_links = [
         item if isinstance(item, ClaimEvidenceLink) else ClaimEvidenceLink.model_validate(item)
         for item in links
     ]
+    seen_pairs: set[tuple[str, str]] = set()
+    for link in normalized_links:
+        pair = (link.claim_id, link.evidence_id)
+        if pair in seen_pairs:
+            raise ValueError(f"duplicate claim/evidence link pair: {pair}")
+        seen_pairs.add(pair)
     passages = {item.evidence_id: item for item in parsed.passages}
     grouped: dict[str, list[ClaimEvidenceLink]] = defaultdict(list)
     for link in normalized_links:
