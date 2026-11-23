@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from evidence_models import EvidenceSource
 from evidence_passages import select_relevant_passages
@@ -13,6 +13,17 @@ from evidence_passages import select_relevant_passages
 Importance = Literal["high", "normal", "low"]
 EvidenceRelation = Literal["supports", "contradicts", "insufficient", "irrelevant"]
 _CITATION_RE = re.compile(r"\[(S\d+)\]")
+
+
+def _require_unique(values: list[str], label: str) -> None:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for value in values:
+        if value in seen:
+            duplicates.add(value)
+        seen.add(value)
+    if duplicates:
+        raise ValueError(f"duplicate {label}: {sorted(duplicates)}")
 
 
 class InformationNeed(BaseModel):
@@ -31,6 +42,11 @@ class Claim(BaseModel):
     importance: Importance = "normal"
     qualifiers: list[str] = Field(default_factory=list)
     cited_source_ids: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def cited_sources_are_unique(self):
+        _require_unique(self.cited_source_ids, "cited_source_ids")
+        return self
 
 
 class EvidencePassage(BaseModel):
@@ -68,6 +84,16 @@ class ClaimAnalysisResult(BaseModel):
     links: list[ClaimEvidenceLink] = Field(default_factory=list)
     unmapped_source_ids: list[str] = Field(default_factory=list)
     claims_without_evidence: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def graph_ids_are_unique(self):
+        _require_unique([item.claim_id for item in self.claims], "claim_id")
+        _require_unique([item.evidence_id for item in self.passages], "evidence_id")
+        _require_unique(
+            [f"{item.claim_id}:{item.evidence_id}" for item in self.links],
+            "claim/evidence link pair",
+        )
+        return self
 
 
 def _split_answer_sentences(answer: str) -> list[str]:
@@ -137,8 +163,12 @@ def build_evidence_passages(
     if max_passages_per_source < 1 or max_chars_per_passage < 1:
         raise ValueError("passage limits must be positive")
     passages: list[EvidencePassage] = []
+    seen_source_ids: set[str] = set()
     for raw_source in sources or []:
         source = raw_source if isinstance(raw_source, EvidenceSource) else EvidenceSource.model_validate(raw_source)
+        if source.source_id in seen_source_ids:
+            raise ValueError(f"duplicate source_id: {source.source_id}")
+        seen_source_ids.add(source.source_id)
         body = source.extracted_text or source.content or ""
         segments = [s.strip() for s in re.split(r"(?<=[.!?。！？])\s+|\n+", body) if s.strip()]
         for index, segment in enumerate(segments[:max_passages_per_source], 1):
@@ -206,6 +236,8 @@ def retrieve_claim_evidence_passages(
     source_map: dict[str, EvidenceSource] = {}
     for raw_source in sources or []:
         source = raw_source if isinstance(raw_source, EvidenceSource) else EvidenceSource.model_validate(raw_source)
+        if source.source_id in source_map:
+            raise ValueError(f"duplicate source_id: {source.source_id}")
         source_map[source.source_id] = source
 
     passages: list[EvidencePassage] = []
