@@ -118,6 +118,13 @@ class ClaimAnalysisTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             Claim(claim_id="C1", text="claim", cited_source_ids=["S1", "S1"])
 
+    def test_retrieval_rejects_duplicate_source_records(self):
+        from claim_analysis import retrieve_claim_evidence_passages
+        claim = extract_cited_claims("claim [S1]")
+        source = {"source_id": "S1", "url": "https://example.org/source", "content": "source text"}
+        with self.assertRaisesRegex(ValueError, "duplicate source_id"):
+            retrieve_claim_evidence_passages(claim, [source, source], semantic_enabled=False)
+
     def test_duplicate_source_records_are_rejected(self):
         source = {"source_id": "S1", "url": "https://example.org/source", "content": "source text"}
         with self.assertRaisesRegex(ValueError, "duplicate source_id"):
