@@ -137,7 +137,7 @@ class ClaimSynthesisTests(unittest.TestCase):
 
     def test_duplicate_links_supplied_to_synthesis_are_rejected(self):
         analysis = make_analysis(["supports"])
-        with self.assertRaises(ValidationError):
+        with self.assertRaisesRegex(ValueError, "duplicate claim/evidence link pair"):
             synthesize_claim_evidence(
                 analysis,
                 reasoning_links=[analysis.links[0], analysis.links[0]],
