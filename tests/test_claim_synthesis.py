@@ -1,4 +1,5 @@
 import unittest
+from pydantic import ValidationError
 
 from claim_analysis import Claim, ClaimAnalysisResult, ClaimEvidenceLink, EvidencePassage
 from claim_synthesis import synthesize_claim_evidence
@@ -133,6 +134,14 @@ class ClaimSynthesisTests(unittest.TestCase):
             ["supports", "supports"], groups={1: "origin-A", 2: "origin-B"}
         )).claims[0]
         self.assertEqual(result.independent_support_group_count, 2)
+
+    def test_duplicate_links_supplied_to_synthesis_are_rejected(self):
+        analysis = make_analysis(["supports"])
+        with self.assertRaises(ValidationError):
+            synthesize_claim_evidence(
+                analysis,
+                reasoning_links=[analysis.links[0], analysis.links[0]],
+            )
 
     def test_input_analysis_is_not_mutated(self):
         analysis = make_analysis(["supports"])
