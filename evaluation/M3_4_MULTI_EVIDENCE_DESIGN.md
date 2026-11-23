@@ -220,3 +220,14 @@ Each of the five fixtures produced the expected decision on all five repetitions
 The maximum latency came from the first request (12.10 s); the other 24 requests were approximately 2.40–2.52 s. This may reflect model/runtime warm-up, but the cause is not established by this run.
 
 Interpretation: the enum-based consistency auditor is repeatable on these five targeted fixtures under the tested local configuration. This is not a statistical benchmark, a broad reasoning-quality evaluation, or evidence of production generalization. The same model family is used for analysis and audit, so correlated errors remain possible. The consumed M3.4 holdout was not reused. A fresh untouched evaluation set or labelled real-world cases are required for broader quality claims.
+
+
+## Claim/evidence identifier integrity hardening (2026-11-23)
+
+- Added Pydantic validation that rejects duplicate Claim IDs, Evidence IDs, repeated cited Source IDs within a Claim, and duplicate (claim_id, evidence_id) link pairs in a ClaimAnalysisResult.
+- Source IDs are intentionally allowed to repeat across EvidencePassage records: one source can produce multiple distinct passages. The new duplicate-source check applies to the input source-record list before it is converted to a map or passage collection, preventing silent last-write-wins replacement of a duplicate source record.
+- Both reason_claim_evidence() and synthesize_claim_evidence() revalidate a serialized snapshot of incoming ClaimAnalysisResult objects. This also catches duplicate graph entries introduced by mutation after initial Pydantic construction.
+- synthesize_claim_evidence() separately rejects duplicate link pairs supplied through its optional reasoning_links argument.
+- Added regression tests for duplicate Claim IDs, Evidence IDs, cited source IDs, source records in passage building/retrieval, duplicate graph links, and duplicate synthesis links. Updated budget tests to use distinct evidence IDs instead of intentionally repeating the same link.
+- CI on PR #14 head 215b99e412fd203843a210931be73f9fd29059e3: GitHub Actions run 45170783483, unittest job 137679451746, passed all 209 Python tests (Ran 209 tests ... OK).
+- This hardening validates identifier and graph integrity; it does not improve or establish semantic reasoning accuracy. The PR remains Draft/open/unmerged and main remains unchanged.
