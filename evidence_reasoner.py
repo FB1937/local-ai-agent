@@ -96,7 +96,8 @@ def reason_claim_evidence(
         raise ValueError("max_links must be positive")
     if timeout < 1:
         raise ValueError("timeout must be positive")
-    parsed = analysis if isinstance(analysis, ClaimAnalysisResult) else ClaimAnalysisResult.model_validate(analysis)
+    raw_analysis = analysis.model_dump() if isinstance(analysis, ClaimAnalysisResult) else analysis
+    parsed = ClaimAnalysisResult.model_validate(raw_analysis)
     request_fn = request_fn or requests.post
     base_url = (ollama_url or os.getenv("OLLAMA_URL", "http://localhost:11434")).rstrip("/")
     model_name = model or os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
