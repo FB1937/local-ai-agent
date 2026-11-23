@@ -1,4 +1,5 @@
 import unittest
+from pydantic import ValidationError
 
 from claim_analysis import (
     analyze_claim_evidence,
@@ -91,6 +92,36 @@ class ClaimAnalysisTests(unittest.TestCase):
         }], max_passages_per_source=2, max_chars_per_passage=5)
         self.assertLessEqual(len(passages), 2)
         self.assertTrue(all(len(p.text) <= 5 for p in passages))
+
+    def test_claim_analysis_rejects_duplicate_claim_ids(self):
+        with self.assertRaises(ValidationError):
+            from claim_analysis import ClaimAnalysisResult
+            ClaimAnalysisResult(claims=[
+                {"claim_id": "C1", "text": "first"},
+                {"claim_id": "C1", "text": "second"},
+            ])
+
+    def test_claim_analysis_rejects_duplicate_evidence_ids(self):
+        from claim_analysis import ClaimAnalysisResult
+        passage = {"evidence_id": "E1", "source_id": "S1", "text": "evidence", "location": "sentence:1"}
+        with self.assertRaises(ValidationError):
+            ClaimAnalysisResult(passages=[passage, passage])
+
+    def test_claim_analysis_rejects_duplicate_claim_evidence_links(self):
+        from claim_analysis import ClaimAnalysisResult
+        link = {"claim_id": "C1", "evidence_id": "E1"}
+        with self.assertRaises(ValidationError):
+            ClaimAnalysisResult(links=[link, link])
+
+    def test_claim_rejects_duplicate_cited_source_ids(self):
+        from claim_analysis import Claim
+        with self.assertRaises(ValidationError):
+            Claim(claim_id="C1", text="claim", cited_source_ids=["S1", "S1"])
+
+    def test_duplicate_source_records_are_rejected(self):
+        source = {"source_id": "S1", "url": "https://example.org/source", "content": "source text"}
+        with self.assertRaisesRegex(ValueError, "duplicate source_id"):
+            build_evidence_passages([source, source])
 
     def test_non_positive_limits_are_rejected(self):
         with self.assertRaises(ValueError):
