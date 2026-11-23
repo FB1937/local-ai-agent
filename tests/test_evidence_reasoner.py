@@ -78,7 +78,12 @@ class EvidenceReasonerTests(unittest.TestCase):
 
     def test_link_budget_is_enforced(self):
         analysis = make_analysis()
-        analysis.links = analysis.links * 3
+        for index in range(2, 4):
+            analysis.passages.append(EvidencePassage(
+                evidence_id=f"E{index}", source_id="S1", claim_id="C1",
+                text=f"Additional evidence {index}", location=f"sentence:{index}",
+            ))
+            analysis.links.append(ClaimEvidenceLink(claim_id="C1", evidence_id=f"E{index}"))
         request = Mock(return_value=FakeResponse(json.dumps({"relation": "supports", "reason": "Direct."})))
         result = reason_claim_evidence(analysis, max_links=1, request_fn=request)
         self.assertEqual(request.call_count, 1)
@@ -112,7 +117,12 @@ class EvidenceReasonerTests(unittest.TestCase):
 
     def test_global_budget_is_never_exceeded(self):
         analysis = make_analysis()
-        analysis.links = analysis.links * 25
+        for index in range(2, 26):
+            analysis.passages.append(EvidencePassage(
+                evidence_id=f"E{index}", source_id="S1", claim_id="C1",
+                text=f"Additional evidence {index}", location=f"sentence:{index}",
+            ))
+            analysis.links.append(ClaimEvidenceLink(claim_id="C1", evidence_id=f"E{index}"))
         request = Mock(return_value=FakeResponse(json.dumps({"relation": "supports", "reason": "Direct."})))
         result = reason_claim_evidence(analysis, max_links=3, request_fn=request)
         self.assertEqual(request.call_count, 3)
