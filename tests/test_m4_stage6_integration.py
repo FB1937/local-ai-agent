@@ -43,7 +43,7 @@ class M4Stage6IntegrationTests(unittest.TestCase):
         m3.assert_called_once()
         legacy.assert_not_called()
         self.assertEqual(result["claim_evidence_review"]["status"], "assessed")
-        self.assertEqual(result["answer"], direct_generation["answer"])
+        self.assertEqual(result["answer"], self.generation["answer"])
 
     def test_direct_route_skips_m3(self):
         direct_generation = {**self.generation, "answer": "안녕하세요."}
@@ -54,7 +54,7 @@ class M4Stage6IntegrationTests(unittest.TestCase):
             )
         m3.assert_not_called()
         self.assertEqual(result["claim_evidence_review"]["status"], "skipped_direct")
-        self.assertEqual(result["answer"], self.generation["answer"])
+        self.assertEqual(result["answer"], direct_generation["answer"])
 
     def test_contradicted_claim_blocks_entire_generated_answer(self):
         review = {
