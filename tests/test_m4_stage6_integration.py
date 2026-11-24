@@ -8,6 +8,7 @@ from claim_synthesis import ClaimEvidenceSynthesis, ClaimSynthesisReport
 from evidence_reasoner import EvidenceReasoningResult
 from semantic_claim_synthesis import SemanticClaimSynthesisReport
 from m3_response_grounding import evaluate_response_claims
+from claim_analysis import Claim, ClaimAnalysisResult
 
 
 class M4Stage6IntegrationTests(unittest.TestCase):
