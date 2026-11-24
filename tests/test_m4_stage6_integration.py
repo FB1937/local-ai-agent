@@ -123,6 +123,42 @@ class M4Stage6IntegrationTests(unittest.TestCase):
         self.assertEqual(result["semantic"]["unassessed_count"], 2)
         self.assertEqual(result["semantic"]["skipped_count"], 3)
 
+    def test_adapter_reports_claim_citations_passages_and_source_text_lengths(self):
+        answer = "The system launched in 2025 after a long public testing period. [S1]"
+        source = {
+            **self.source,
+            "content": "The system launched in 2025 after a long public testing period.",
+            "extracted_text": "The system launched in 2025 after a long public testing period.",
+            "extraction_status": "success",
+        }
+        baseline = ClaimSynthesisReport(claims=[
+            ClaimEvidenceSynthesis(
+                claim_id="C1", status="insufficient", reason="not classified",
+            )
+        ])
+        with patch(
+            "m3_response_grounding.reason_claim_evidence",
+            return_value=EvidenceReasoningResult(links=[]),
+        ), patch(
+            "m3_response_grounding.synthesize_claim_evidence",
+            return_value=baseline,
+        ), patch(
+            "m3_response_grounding.synthesize_claim_evidence_semantically",
+            return_value=(baseline, SemanticClaimSynthesisReport(claims=[])),
+        ):
+            result = evaluate_response_claims(answer, [source])
+
+        retrieval = result["retrieval"]
+        self.assertEqual(retrieval["claim_count"], 1)
+        self.assertEqual(retrieval["claims_with_citations"], 1)
+        self.assertEqual(retrieval["passage_count"], 1)
+        self.assertEqual(retrieval["claim_evidence_link_count"], 1)
+        self.assertEqual(retrieval["claims_without_evidence"], [])
+        self.assertEqual(retrieval["claims"][0]["cited_source_ids"], ["S1"])
+        self.assertEqual(retrieval["claims"][0]["passage_count"], 1)
+        self.assertEqual(retrieval["sources"][0]["extraction_status"], "success")
+        self.assertGreater(retrieval["sources"][0]["extracted_text_chars"], 40)
+
     def test_adapter_exception_returns_error_not_success(self):
         with patch("m3_response_grounding.analyze_claim_evidence",
                    side_effect=RuntimeError("broken")):
