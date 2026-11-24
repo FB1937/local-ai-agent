@@ -103,20 +103,29 @@ def evaluate_response_claims(
         # Expose the exact passage and pairwise label behind each claim status.
         # This is diagnostic only; it does not change synthesis or blocking policy.
         passages_by_id = {item.evidence_id: item for item in analysis.passages}
-        reasoning_by_claim: dict[str, list] = {}
-        for link in reasoning.links:
-            reasoning_by_claim.setdefault(link.claim_id, []).append(link)
+        reasoning_by_pair = {
+            (link.claim_id, link.evidence_id): link for link in reasoning.links
+        }
+        analysis_links_by_claim: dict[str, list] = {}
+        for link in analysis.links:
+            analysis_links_by_claim.setdefault(link.claim_id, []).append(link)
         for item in retrieval_diagnostics["claims"]:
             details = []
-            for link in reasoning_by_claim.get(item["claim_id"], []):
-                passage = passages_by_id.get(link.evidence_id)
+            # Retrieval provenance and model assessment are separate facts:
+            # keep every selected Claim-Evidence link visible even when the
+            # pairwise call was skipped, failed, or returned no assessment.
+            for analysis_link in analysis_links_by_claim.get(item["claim_id"], []):
+                passage = passages_by_id.get(analysis_link.evidence_id)
                 if passage is None:
                     continue
+                assessed_link = reasoning_by_pair.get(
+                    (analysis_link.claim_id, analysis_link.evidence_id)
+                )
                 details.append({
                     "evidence_id": passage.evidence_id,
                     "source_id": passage.source_id,
-                    "relation": link.relation,
-                    "reason": link.reason,
+                    "relation": assessed_link.relation if assessed_link else None,
+                    "reason": assessed_link.reason if assessed_link else None,
                     "text": passage.text,
                     "retrieval_method": passage.retrieval_method,
                     "retrieval_score": passage.retrieval_score,
