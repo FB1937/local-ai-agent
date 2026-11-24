@@ -1,7 +1,12 @@
 import unittest
+from unittest.mock import patch
 
 from claim_analysis import Claim, ClaimAnalysisResult, ClaimEvidenceLink, EvidencePassage
 from claim_normalization import normalize_claim_analysis
+from claim_synthesis import ClaimEvidenceSynthesis, ClaimSynthesisReport
+from evidence_reasoner import EvidenceReasoningResult
+from semantic_claim_synthesis import SemanticClaimSynthesisReport
+from m3_response_grounding import evaluate_response_claims
 
 
 class ClaimNormalizationTests(unittest.TestCase):
@@ -83,6 +88,69 @@ class ClaimNormalizationTests(unittest.TestCase):
             {(link.claim_id, link.evidence_id) for link in normalized.links},
             {("C3", "E3"), ("C4", "E4")},
         )
+
+    def test_adapter_keeps_budget_skips_unassessed_and_reports_exclusions(self):
+        analysis = ClaimAnalysisResult(
+            claims=[
+                Claim(claim_id="C1", text="The service costs 20 dollars in 2026. [S1]"),
+                Claim(claim_id="C2", text="The service offers a dashboard. [S2]"),
+                Claim(claim_id="C3", text="## Conclusion"),
+            ],
+            passages=[
+                EvidencePassage(
+                    evidence_id="E1", source_id="S1", claim_id="C1",
+                    text="The service costs 20 dollars in 2026.", location="sentence:1",
+                ),
+                EvidencePassage(
+                    evidence_id="E2", source_id="S2", claim_id="C2",
+                    text="The service offers a dashboard.", location="sentence:1",
+                ),
+            ],
+            links=[
+                ClaimEvidenceLink(claim_id="C1", evidence_id="E1"),
+                ClaimEvidenceLink(claim_id="C2", evidence_id="E2"),
+            ],
+        )
+        selected_result = EvidenceReasoningResult(
+            links=[ClaimEvidenceLink(
+                claim_id="C1", evidence_id="E1", relation="supports",
+                reason="Direct support.",
+            )],
+            assessed_count=1,
+        )
+        baseline = ClaimSynthesisReport(claims=[
+            ClaimEvidenceSynthesis(
+                claim_id="C1", status="supported",
+                supporting_evidence_ids=["E1"], reason="supported",
+            ),
+            ClaimEvidenceSynthesis(
+                claim_id="C2", status="unassessed",
+                unassessed_evidence_ids=["E2"], reason="budget skipped",
+            ),
+        ])
+        with patch("m3_response_grounding.analyze_claim_evidence", return_value=analysis), \
+             patch("m3_response_grounding.reason_claim_evidence", return_value=selected_result) as reasoner, \
+             patch("m3_response_grounding.synthesize_claim_evidence", return_value=baseline) as synth, \
+             patch("m3_response_grounding.synthesize_claim_evidence_semantically",
+                   return_value=(baseline, SemanticClaimSynthesisReport(claims=[]))):
+            result = evaluate_response_claims("answer", [], max_links=1)
+
+        reasoner.assert_called_once()
+        assessed_graph = reasoner.call_args.args[0]
+        self.assertEqual(
+            [(link.claim_id, link.evidence_id) for link in assessed_graph.links],
+            [("C1", "E1")],
+        )
+        combined = synth.call_args.args[1]
+        self.assertEqual(len(combined), 2)
+        self.assertEqual(combined[0].relation, "supports")
+        self.assertIsNone(combined[1].relation)
+        self.assertIn("예산 초과", combined[1].reason)
+        self.assertEqual(result["pairwise"]["assessed_count"], 1)
+        self.assertEqual(result["pairwise"]["budget_skipped_count"], 1)
+        self.assertEqual(result["pairwise"]["skipped_count"], 1)
+        self.assertEqual(result["retrieval"]["excluded_claim_count"], 1)
+        self.assertEqual(result["retrieval"]["excluded_claims"][0]["claim_id"], "C3")
 
     def test_rejects_non_positive_budget(self):
         with self.assertRaises(ValueError):
