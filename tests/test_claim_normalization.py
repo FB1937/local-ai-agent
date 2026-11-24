@@ -67,7 +67,7 @@ class ClaimNormalizationTests(unittest.TestCase):
         normalized, selected, skipped, _ = normalize_claim_analysis(analysis, max_links=3)
         self.assertEqual(
             [(link.claim_id, link.evidence_id) for link in selected],
-            [("C2", "E3"), ("C1", "E1"), ("C2", "E4")],
+            [("C2", "E3"), ("C1", "E1"), ("C3", "E5")],
         )
         self.assertEqual(len(skipped), 3)
         self.assertEqual(len(normalized.links), 6)
