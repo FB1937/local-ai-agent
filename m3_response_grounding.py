@@ -38,6 +38,62 @@ def evaluate_response_claims(
         analysis = analyze_claim_evidence(answer, sources)
         timings["claim_analysis"] = perf_counter() - step
 
+        # Preserve retrieval provenance so an "insufficient" result can be
+        # diagnosed as missing citations, missing source text, or no matching
+        # passages instead of exposing only the final status.
+        passage_by_id = {item.evidence_id: item for item in analysis.passages}
+        links_by_claim: dict[str, list] = {}
+        for link in analysis.links:
+            links_by_claim.setdefault(link.claim_id, []).append(link)
+        passages_by_claim: dict[str, list] = {}
+        for passage in analysis.passages:
+            if passage.claim_id:
+                passages_by_claim.setdefault(passage.claim_id, []).append(passage)
+        claim_retrieval = []
+        for claim in analysis.claims:
+            claim_links = links_by_claim.get(claim.claim_id, [])
+            claim_passages = passages_by_claim.get(claim.claim_id, [])
+            claim_retrieval.append({
+                "claim_id": claim.claim_id,
+                "cited_source_ids": list(claim.cited_source_ids),
+                "passage_count": len(claim_passages),
+                "linked_passage_count": len(claim_links),
+                "retrieval_methods": sorted({
+                    item.retrieval_method or "unknown" for item in claim_passages
+                }),
+            })
+        source_retrieval = []
+        for raw_source in sources or []:
+            source = raw_source
+            source_id = source.get("source_id", "") if isinstance(source, dict) else source.source_id
+            extracted = source.get("extracted_text") if isinstance(source, dict) else source.extracted_text
+            content = source.get("content", "") if isinstance(source, dict) else source.content
+            body = extracted or content or ""
+            source_retrieval.append({
+                "source_id": source_id,
+                "extraction_status": (
+                    source.get("extraction_status", "unknown")
+                    if isinstance(source, dict) else source.extraction_status
+                ),
+                "extracted_text_chars": len(extracted or ""),
+                "content_chars": len(content or ""),
+                "body_source": "extracted_text" if extracted else "content" if content else "empty",
+                "body_chars_used": len(body),
+            })
+        retrieval_diagnostics = {
+            "claim_count": len(analysis.claims),
+            "claims_with_citations": sum(bool(item.cited_source_ids) for item in analysis.claims),
+            "claims_without_citations": [
+                item.claim_id for item in analysis.claims if not item.cited_source_ids
+            ],
+            "passage_count": len(analysis.passages),
+            "claim_evidence_link_count": len(analysis.links),
+            "claims_without_evidence": list(analysis.claims_without_evidence),
+            "unmapped_source_ids": list(analysis.unmapped_source_ids),
+            "claims": claim_retrieval,
+            "sources": source_retrieval,
+        }
+
         step = perf_counter()
         reasoning = reason_claim_evidence(
             analysis, max_links=max_links, timeout=timeout, request_fn=request_fn,
@@ -68,6 +124,7 @@ def evaluate_response_claims(
             "enabled": True,
             "status": "blocked" if blocking else "review" if insufficient else "assessed",
             "claims": claims,
+            "retrieval": retrieval_diagnostics,
             "claim_count": len(claims),
             "blocking_claim_count": len(blocking),
             "insufficient_claim_count": len(insufficient),
@@ -97,6 +154,12 @@ def evaluate_response_claims(
             "enabled": True,
             "status": "error",
             "claims": [],
+            "retrieval": {
+                "claim_count": 0, "claims_with_citations": 0,
+                "claims_without_citations": [], "passage_count": 0,
+                "claim_evidence_link_count": 0, "claims_without_evidence": [],
+                "unmapped_source_ids": [], "claims": [], "sources": [],
+            },
             "claim_count": 0,
             "blocking_claim_count": 0,
             "insufficient_claim_count": 0,
