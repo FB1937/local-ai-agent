@@ -44,19 +44,22 @@ def _is_structural_or_meta(text: str) -> tuple[bool, str | None]:
         return True, "empty"
     if markdown_heading:
         return True, "markdown_heading"
-    # Short, non-sentential labels are headings; retain complete declarative
-    # sentences even when they are short (e.g. "Python 3.15 is stable.").
-    if len(value) <= 100 and not re.search(r"[.!?。！？][\s\]]*$", value):
-        if value.endswith(":") or _SECTION_LABEL_RE.search(value):
-            return True, "section_label"
     if any(pattern.search(value) for pattern in _META_PATTERNS):
         return True, "answer_scaffolding"
+    # Citation suffixes must not make a complete sentence look like a heading.
+    value_without_citations = re.sub(r"\s*\[S\d+\](?:\s*\[S\d+\])*\s*$", "", value)
+    # Short, known section labels are filtered; ordinary short claims remain.
+    if len(value_without_citations) <= 100 and not re.search(
+        r"[.!?。！？]\s*$", value_without_citations
+    ):
+        if value_without_citations.endswith(":") or _SECTION_LABEL_RE.search(value_without_citations):
+            return True, "section_label"
     return False, None
 
 
 def _importance(text: str) -> str:
     # Citation IDs contain digits but must not inflate a claim's priority.
-    content = re.sub(r"\\[S\\d+\\]", "", text or "")
+    content = re.sub(r"\[S\d+\]", "", text or "")
     return "high" if _IMPORTANT_RE.search(content) else "normal"
 
 
