@@ -66,9 +66,13 @@ def generate_response(question: str, execution: dict, route: str,
         "1", "true", "yes", "on",
     }
     semantic_review = {
-        "enabled": semantic_enabled, "checks": [],
+        "enabled": semantic_enabled and not m3_enabled, "checks": [],
         "automatically_verified_count": 0,
-        "note": "비활성화됨" if not semantic_enabled else "",
+        "note": (
+            "M3 Claim/Evidence 검토가 활성화되어 기존 의미 검토기는 실행하지 않습니다."
+            if semantic_enabled and m3_enabled
+            else "비활성화됨" if not semantic_enabled else ""
+        ),
     }
     m3_review = {
         "enabled": m3_enabled, "status": "disabled", "claims": [],
