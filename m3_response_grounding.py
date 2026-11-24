@@ -111,16 +111,25 @@ def evaluate_response_claims(
         }
         # Preserve every retrieved link for deterministic synthesis. Links not
         # selected by the M4.2 budget planner remain explicitly unassessed.
-        combined_reasoning_links = [
-            reasoning_by_pair.get(
-                (link.claim_id, link.evidence_id),
-                link.model_copy(update={
+        selected_pairs = {
+            (link.claim_id, link.evidence_id) for link in selected_links
+        }
+        combined_reasoning_links = []
+        for link in analysis.links:
+            pair = (link.claim_id, link.evidence_id)
+            assessed = reasoning_by_pair.get(pair)
+            if assessed is not None:
+                combined_reasoning_links.append(assessed)
+            elif pair in selected_pairs:
+                combined_reasoning_links.append(link.model_copy(update={
+                    "relation": None,
+                    "reason": "선택된 링크가 판정 결과에서 누락되어 미평가로 처리했습니다.",
+                }))
+            else:
+                combined_reasoning_links.append(link.model_copy(update={
                     "relation": None,
                     "reason": "M4.2 검증 예산 초과로 모델 판정을 수행하지 않았습니다.",
-                }),
-            )
-            for link in analysis.links
-        ]
+                }))
         timings["pairwise_reasoning"] = perf_counter() - step
 
         # Expose the exact passage and pairwise label behind each claim status.
