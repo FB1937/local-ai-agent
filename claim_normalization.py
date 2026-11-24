@@ -55,7 +55,9 @@ def _is_structural_or_meta(text: str) -> tuple[bool, str | None]:
 
 
 def _importance(text: str) -> str:
-    return "high" if _IMPORTANT_RE.search(text or "") else "normal"
+    # Citation IDs contain digits but must not inflate a claim's priority.
+    content = re.sub(r"\\[S\\d+\\]", "", text or "")
+    return "high" if _IMPORTANT_RE.search(content) else "normal"
 
 
 def _priority_round_robin(
