@@ -43,6 +43,8 @@ class M4Stage6IntegrationTests(unittest.TestCase):
         m3.assert_called_once()
         legacy.assert_not_called()
         self.assertEqual(result["claim_evidence_review"]["status"], "assessed")
+        self.assertFalse(result["semantic_verification"]["enabled"])
+        self.assertIn("실행하지 않습니다", result["semantic_verification"]["note"])
         self.assertEqual(result["answer"], self.generation["answer"])
 
     def test_direct_route_skips_m3(self):
