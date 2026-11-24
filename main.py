@@ -197,6 +197,20 @@ def main():
                     f"구절 {item.get('passage_count', 0)} / 연결 {item.get('linked_passage_count', 0)} / "
                     f"검색 방식 {','.join(item.get('retrieval_methods', [])) or '없음'}"
                 )
+                claim_text = " ".join(str(item.get("text", "")).split())
+                if claim_text:
+                    print(f"      주장: {claim_text[:320]}")
+                for evidence in item.get("evidence", []):
+                    evidence_text = " ".join(str(evidence.get("text", "")).split())
+                    reason_text = " ".join(str(evidence.get("reason", "")).split())
+                    print(
+                        f"      {evidence.get('evidence_id')} / {evidence.get('source_id')} / "
+                        f"{evidence.get('relation') or '미평가'} / "
+                        f"{evidence.get('retrieval_method') or 'unknown'}"
+                    )
+                    print(f"        근거: {evidence_text[:360]}")
+                    if reason_text:
+                        print(f"        판정 사유: {reason_text[:240]}")
             for source in retrieval.get("sources", []):
                 print(
                     f"    출처 {source.get('source_id')}: 추출 상태 {source.get('extraction_status')} / "
