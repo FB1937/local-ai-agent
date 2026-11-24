@@ -246,3 +246,23 @@ The M3 modules are now connected to Stage 6 through `m3_response_grounding.py`. 
 - The feature flag defaults to disabled (`0`) to avoid silently adding up to 30 local model requests to existing responses before latency and behavior are measured. Enable explicitly for local testing with `ENABLE_M3_CLAIM_GROUNDING=1`. This is an integrated opt-in path, not yet a production-default activation.
 - Added Stage 6 regression tests for SEARCH, DIRECT, HYBRID, blocking, generation-incomplete skip, legacy verifier mutual exclusion, adapter counters, and adapter failure behavior.
 - Local Python tests and live Ollama checks have not yet been run from the user's Windows environment. GitHub Actions results will be recorded after the integration PR is opened.
+
+
+## M4.2 Claim normalization and pairwise budget allocation (2026-11-24)
+
+M4.2 adds a conservative preprocessing layer in `claim_normalization.py`, called by the Stage 6 adapter before pairwise assessment.
+
+- Excludes unmistakable Markdown headings, known short section labels, and explicit answer-scaffolding introductions. Exclusions remain visible in diagnostics with Claim ID, original text, and reason.
+- Preserves ordinary short declarative claims; the filter does not discard arbitrary short text.
+- Assigns a heuristic `high` or `normal` review priority. Numeric, temporal, version, cost, limit, security, policy, and explicitly official/recommended claims receive `high`. Citation IDs are stripped before priority matching so `[S1]` does not make every claim high priority.
+- Allocates the existing pairwise call budget by priority and round-robin coverage across claims. The first pass aims to cover each claim before assigning a second passage to a claim.
+- Every retrieved Claim–Evidence link remains in the synthesis graph. Links not selected because of the budget are explicitly unassessed with a budget-specific reason; they are counted separately from model failures and are never treated as successful checks.
+- CLI diagnostics display excluded segments, each claim's priority, selected/available link counts, and budget-skipped counts.
+- Added normalization and adapter tests. GitHub Actions run 45402963670 on head `939ad78a8dbb16066deea91a31294af2b7484fe9` passed the full Python suite (223 tests).
+
+Limitations:
+- Priority is a transparent heuristic, not a calibrated estimate of claim importance or risk.
+- Compound sentences are not automatically split or rewritten. Doing so safely requires an explicit atomic-claim representation that preserves qualifiers and citation provenance.
+- This does not correct pairwise semantic classification errors such as option-scope confusion. The `--without-pip` false-contradiction example remains a separate classifier/retrieval regression case.
+- CI does not exercise the local Ollama model. Windows live behavior, latency, and output quality remain unvalidated.
+- PR #16 is Draft/open and stacked on M4.1 PR #15; neither PR has been merged by this work.

@@ -176,6 +176,12 @@ def main():
                     f"미평가 {metrics.get('unassessed_count', 0)} / "
                     f"건너뜀 {metrics.get('skipped_count', 0)}"
                 )
+                if stage_name == "pairwise":
+                    print(
+                        f"    예산 배정: {metrics.get('selected_link_count', 0)} / "
+                        f"{metrics.get('available_link_count', 0)}개 연결, "
+                        f"예산 초과 {metrics.get('budget_skipped_count', 0)}개"
+                    )
         retrieval = m3.get("retrieval", {})
         if retrieval:
             print(
@@ -185,6 +191,13 @@ def main():
                 f"근거 구절 {retrieval.get('passage_count', 0)}개 / "
                 f"Claim-Evidence 연결 {retrieval.get('claim_evidence_link_count', 0)}개"
             )
+            if retrieval.get("excluded_claims"):
+                print(f"    구조/안내 문장 제외: {retrieval.get('excluded_claim_count', 0)}개")
+                for excluded in retrieval["excluded_claims"]:
+                    print(
+                        f"      {excluded.get('claim_id')}: "
+                        f"{excluded.get('reason')} / {excluded.get('text', '')[:180]}"
+                    )
             if retrieval.get("claims_without_citations"):
                 print("    인용 없는 Claim: " + ", ".join(retrieval["claims_without_citations"]))
             if retrieval.get("claims_without_evidence"):
