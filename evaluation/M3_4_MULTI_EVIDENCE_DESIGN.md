@@ -1,0 +1,233 @@
+# M3.4 — Claim-level multi-evidence synthesis and conflict diagnosis
+
+## Status and scope
+
+Design, labelled diagnostic dataset, deterministic aggregation baseline, and a bounded LLM-assisted joint-entailment layer are implemented on the existing M3 PR branch. Agent-pipeline integration remains pending. `main` is not changed and PR #14 remains Draft.
+
+## Problem
+
+M3.3 classifies one claim–passage pair at a time. A claim may have several passages, including repeated passages from one source, independent corroboration, complementary facts, and apparently inconsistent statements. A set of pairwise labels is not yet a claim-level verdict.
+
+## Output contract
+
+Keep every original `ClaimEvidenceLink` relation and reason. Add a separate claim-level synthesis result; never overwrite passage-level judgments.
+
+Proposed aggregate status:
+
+- `supported`: at least one valid, scope-aligned passage directly entails the claim, and no unresolved same-scope contradiction remains.
+- `contradicted`: at least one valid, scope-aligned passage directly entails a negation/incompatible alternative, and no unresolved same-scope support remains.
+- `conflict`: both support and contradiction remain after checking subject, scope, conditions, version, and valid time. Preserve both sides and require review; do not vote.
+- `insufficient`: evidence is relevant but does not establish either side, or apparent conflicts are explained by scope/time/condition mismatch, or only weak/duplicated evidence is available.
+- `unassessed`: required pairwise judgments are missing, failed, or skipped. Never silently coerce this to insufficient or a normal verdict.
+
+The exact enum and model names are provisional until tests and API consumers are reviewed.
+
+## Aggregation rules
+
+1. **No majority vote.** One direct contradiction cannot be outvoted by several weak support passages. Conversely, duplicated copies of one source do not count as independent corroboration.
+2. **Separate relation from independence.** A passage can support a claim even if it is not an independent source. Independence changes corroboration strength, not the logical relation label.
+3. **Deduplicate before counting.** Use normalized exact text and source identity as a conservative first pass. Near-duplicate detection must be explicit and auditable; do not silently merge merely similar passages.
+4. **Compare like with like.** Diagnose subject, product/plan, API version, environment, geography, condition, unit, measurement method, and valid-time overlap. Different scopes are not contradictions.
+5. **Treat freshness as metadata, not truth.** Publication date alone must not invalidate a passage. For time-sensitive claims, compare the claim's reference time with the passage's stated valid time; if unknown, preserve uncertainty.
+6. **Complementary evidence may jointly entail.** Do not require every passage independently to state the full claim. Joint inference is allowed only when the required premises are explicit and compatible; preserve which passages jointly support it.
+7. **Absence is not negation.** Omitted coverage, incomplete lists, and missing details do not contradict a claim.
+8. **Provenance is mandatory.** Each aggregate reason must point back to passage IDs, source IDs, source groups, scope/time metadata, and any deduplication decision.
+9. **Unassessed is fail-closed.** If a relevant link needed for the decision was not evaluated, the aggregate must expose that gap rather than claim a clean verdict.
+10. **No source-authority shortcut.** Official/primary sources may be ranked as more authoritative in later policy, but authority alone does not erase a direct unresolved conflict.
+
+## Conflict taxonomy
+
+- `direct`: mutually incompatible statements under the same subject, conditions, scope, version, and overlapping valid time.
+- `scope_mismatch`: different products, plans, roles, environments, regions, or units.
+- `temporal_mismatch`: statements apply to different non-overlapping periods.
+- `condition_mismatch`: statements depend on different explicit preconditions.
+- `duplicate_not_independent`: repeated or syndicated content from the same underlying source.
+- `freshness_uncertain`: evidence is stale or its valid period is unknown for a current-state claim.
+- `none`: no conflict diagnosed.
+
+A scope/time mismatch normally removes the apparent contradiction for this claim; it must not be represented as a direct conflict.
+
+## Evaluation design
+
+Dataset: `evaluation/multi_evidence_cases.jsonl` — 32 manually labelled Korean synthetic cases, balanced across four aggregate outcomes (8 each). The cases cover independent corroboration, same-source repetition, complementary premises, direct conflict, explicit exhaustive lists, scope/time/condition mismatches, duplicate sources, weak evidence, and freshness uncertainty.
+
+Each evidence item records a pairwise relation label plus source identity/group and optional scope/valid-time/publication metadata. The expected aggregate label and conflict type are manually assigned. This is a small diagnostic set, not a production benchmark or statistical estimate.
+
+Keep the M3.3 24-case holdout untouched. Do not tune M3.4 prompts or rules on that holdout. A separate M3.4 holdout now exists at `evaluation/multi_evidence_holdout.jsonl`: 24 newly authored Korean synthetic cases, balanced 6 per aggregate status. It is a frozen diagnostic set and must not be used for prompt/rule tuning; run it once after the current development decisions are frozen.
+
+## Implementation sequence
+
+- [x] Freeze and review the data contract and 32 labelled cases.
+- [x] Add Pydantic aggregate result contracts with evidence provenance.
+- [x] Implement deterministic prechecks for missing judgments, duplicate identity, and explicit scope/time/condition metadata.
+- [x] Add unit tests for direct conflict, scope/condition/time mismatch, duplicates, missing judgments, no evidence, and no-majority behavior.
+- [x] Use an LLM only where joint entailment is needed; request structured explanations with evidence IDs.
+- [x] Keep deterministic policy responsible for the baseline verdict; semantic upgrades require valid IDs from the supplied set and at least two distinct passages.
+- [x] Run local Qwen 3.5 9B semantic evaluation on the 32-case development set and inspect status and conflict-type errors separately.
+- [x] Add a separate 24-case M3.4 holdout; keep it untouched until the one-time independent evaluation.
+- [ ] Run the frozen M3.4 holdout once with deterministic and semantic modes; do not tune against its results.
+- [ ] Integrate into the Agent response pipeline only after standalone behavior is stable.
+
+## Current deterministic baseline
+
+`claim_synthesis.py` adds `synthesize_claim_evidence()` and separate `ClaimEvidenceSynthesis` / `ClaimSynthesisReport` contracts. It preserves pairwise links, returns `unassessed` when a link is missing or unjudged, and never uses majority voting. A direct support/contradiction pair remains `conflict` unless all cross-pairs have explicit scope, condition, or valid-time mismatches. Duplicate passages are grouped by canonical source/source group plus normalized exact text; duplicates do not inflate independent-source counts. A single valid support remains support even when repeated passages are duplicates.
+
+This baseline deliberately does not infer joint entailment from multiple pairwise `insufficient` labels. Dataset case ME-S08 is a labelled example for the semantic synthesis layer. `semantic_claim_synthesis.py` now makes a bounded Ollama call only for deterministic-`insufficient` claims with at least two non-duplicate insufficient passages. It accepts structured `supports`, `contradicts`, or `insufficient` results; support/contradiction upgrades require at least two evidence IDs from the supplied set and at least two distinct canonical source groups. Different passage IDs or source IDs alone do not establish source independence; passages sharing a canonical source group cannot jointly corroborate a claim. Evidence selection prioritizes one passage per distinct source group. Original pairwise links remain unchanged, joint evidence IDs are recorded separately, and request/schema/provenance failures leave the deterministic verdict intact. The evaluator exposes this as an opt-in `--semantic` mode; the default remains deterministic. This layer is not integrated into the Agent response pipeline. The system still does not infer near-duplicate content, source authority, or freshness from publication date alone.
+
+## Non-goals
+
+- No majority voting or opaque confidence score.
+- No automatic selection of a winning source when two same-scope primary sources conflict.
+- No claim that source authority, recency, or passage count alone proves truth.
+- No M3.5 pipeline integration in this increment.
+
+
+## M3.4 evaluator diagnostics and holdout status
+
+The evaluator now reports claim-status mismatches and conflict-taxonomy mismatches independently. `mismatches` tracks aggregate status; `conflict_type_mismatches` tracks taxonomy labels even when the aggregate status is correct. The 32-case semantic development run previously reported 32/32 status accuracy and macro-F1 1.0, but conflict-type accuracy was 31/32. The initial diagnostic exposed two apparent subtype mismatches. ME-I03 was a development-data metadata error: its expected `condition_mismatch` label was paired with two different `scope` values and no explicit `condition`; the case is corrected to use the same scope and distinct condition fields. After that correction, the remaining subtype mismatch is ME-I04: expected `duplicate_not_independent`, actual `none`, with aggregate status correctly `insufficient`. This identifies a taxonomy behavior gap; it must not be hidden by the perfect status score.
+
+The independent M3.4 holdout contains 24 newly authored cases balanced across supported, contradicted, conflict, and insufficient (6 each). It includes direct and joint entailment/contradiction, source lineage, explicit scope/condition/time differences, weak evidence, and stale current-state evidence. The holdout has not been run against the local model and must remain untouched by further prompt/rule tuning. The latest GitHub Actions run on the current development head passed all 187 Python tests, including evaluator diagnostics, the ME-I03 metadata regression, and holdout integrity. Its synthetic nature means even a perfect result is diagnostic evidence, not proof of real-world generalization.
+
+
+## M3.4 independent holdout evaluation (2026-11-14)
+
+The frozen 24-case holdout has now been executed in both modes. It is therefore a consumed evaluation set: retain the results as a record and do not use these cases to tune prompts or rules. Any next iteration that needs an untouched holdout must author a new independent set.
+
+| Metric | Deterministic | Semantic-assisted |
+|---|---:|---:|
+| Claim status accuracy | 19/24 (79.17%) | 22/24 (91.67%) |
+| Macro-F1 | 0.7931 | 0.9115 |
+| Conflict taxonomy accuracy | 23/24 (95.83%) | 23/24 (95.83%) |
+| Semantic assessments | 0 | 7 |
+| Semantic skipped | 0 | 1 |
+| Semantic unassessed | 0 | 0 |
+
+Semantic mode corrected three deterministic status errors, including three joint-support cases, but left two status mismatches:
+- M34-H-C03: expected contradicted, actual supported. The model's explanation explicitly calculates 48,000 KRW (52,000 + 4,000 - 8,000) against the claimed 80,000 KRW and says the premises contradict the claim, yet the structured relation field is supports. The current implementation validates evidence IDs and source independence but does not validate consistency between the relation enum and its explanation. This is a fail-open semantic-output consistency gap.
+- M34-H-C05: expected contradicted, actual insufficient. The model did not derive the business-day contradiction from the stated Monday-to-following-Tuesday interval. This remains a conservative joint-inference miss; the case's business-day counting convention should be reviewed when designing future evaluation data, not retroactively tuned here.
+
+The deterministic baseline missed five joint-inference cases (S03, S04, S06, C03, C05), which is consistent with its documented non-goal of inferring joint entailment. Semantic mode improved status accuracy by 12.5 percentage points on this small synthetic set. This is diagnostic evidence only, not a production-quality estimate or proof of real-world generalization.
+
+The development set still has one taxonomy mismatch, ME-I04 (duplicate_not_independent expected, none actual). The holdout's M34-H-I04 reproduces the same taxonomy gap. Source-group lineage should be distinguished from exact/near duplicate content and from independent corroboration; do not label every pair of passages from one source as duplicated. The next design should consider exposing independence/corroboration as a separate diagnostic field instead of overloading conflict_type.
+
+
+## Follow-up implementation: relation/reason consistency and source lineage (2026-11-14)
+
+### Semantic consistency audit
+
+The semantic joint-entailment path now performs a second bounded Ollama request after the first structured relation response. The audit receives the exact claim, selected evidence passages, proposed relation, and the first response's explanation. It returns a strict boolean consistency decision.
+
+- Only an explicit `consistent=true` permits the semantic assessment to proceed to the existing Python evidence-ID and source-group checks.
+- A false, malformed, ambiguous, timed-out, or failed audit preserves the deterministic baseline (fail-closed).
+- This is a same-model critic pass, not an independent verifier, external proof, or guarantee against correlated model error. It adds one extra model request per eligible claim and therefore increases latency.
+- Mocked tests cover a relation/reason mismatch and verifier failure. Live Qwen development evaluation after this change retained 32/32 Claim-status accuracy, macro-F1 1.0, and 31/32 conflict-type accuracy; semantic assessment/skips remained 4/2. This shows no regression on the current development set, but does not establish that the verifier detects inconsistent live model responses because the set does not yet contain a dedicated relation/reason-mismatch case. Latency was not included in the supplied evaluation output.
+
+### Source lineage is not duplicate content
+
+Claim synthesis now reports `distinct_source_group_count` and `source_lineage_status` separately from `duplicate_groups`. Exact duplicate grouping still requires normalized identical text from the same underlying source. Multiple distinct passages from one source group are reported as a single source group but are not automatically classified as duplicate content. Multiple source groups are a lineage-coverage diagnostic, not proof of true editorial/statistical independence.
+
+The earlier ME-I04 / M34-H-I04 expected `duplicate_not_independent` subtype remains a taxonomy/labeling question; aggregate status remains `insufficient`. Do not change or retune the consumed 24-case holdout. Any future quality claim requires a fresh untouched holdout or real-world labelled documents.
+
+### CI
+
+Head `7edf4ab51a15e952ea0060e2d07fe351dd4800ba`: both GitHub Actions unittest jobs passed, with 191 Python tests per run (2026-11-14). This verifies mocked behavior and regression contracts, not live model quality.
+
+
+### Live development re-evaluation after consistency audit (2026-11-14)
+
+Command: `python -m evaluation.run_claim_synthesis_evaluation --dataset evaluation/multi_evidence_cases.jsonl --semantic --model qwen3.5:9b --output evaluation/m34_semantic_dev_after_consistency.json`
+
+- Claim status: 32/32 correct; accuracy 1.0; macro-F1 1.0; no status mismatches.
+- Conflict taxonomy: 31/32 correct (0.96875). The only mismatch remains ME-I04: expected `duplicate_not_independent`, actual `none`; aggregate status is correctly `insufficient`.
+- Semantic assessments: 4; skipped: 2; unassessed: 0.
+- Compared with the earlier semantic development run, the aggregate metrics and semantic counters are unchanged. The new audit therefore shows no regression on this development set, but the result does not demonstrate that the audit catches a live relation/reason inconsistency: the set contains no dedicated C03-style mismatch case. Add such a case to future development data, then evaluate against a newly authored untouched holdout. Do not reuse the consumed 24-case holdout.
+- The provided output does not include latency measurements, so no latency conclusion can be drawn from this run.
+
+
+## Targeted live consistency-audit diagnostic (2026-11-15)
+
+A separate evaluator, `evaluation/run_consistency_audit_evaluation.py`, isolates the second-pass relation/reason auditor from the first-pass analyst. It sends five controlled Korean cases directly to the configured Ollama model:
+
+- C03-style mismatch: structured `supports`, but the explanation calculates 48,000 KRW against a claimed 80,000 KRW and explicitly says the claim is contradicted (expected reject).
+- Reverse mismatch: structured `contradicts`, but the explanation says the calculated amount matches the claim (expected reject).
+- Ambiguous explanation with an unsupported `supports` verdict (expected reject).
+- Coherent contradiction and coherent support controls (expected accept).
+
+The report records false accepts, false rejections, request errors, and per-case latency plus mean/median/max latency. Errors count as incorrect and remain fail-closed. This is a targeted diagnostic fixture, not a replacement for the aggregate development dataset and not a statistical benchmark. It deliberately does not modify or reuse the consumed 24-case holdout. The same-model critic limitation remains: a second pass can share correlated errors with the first pass.
+
+Run locally from the repository root:
+
+```powershell
+python -m evaluation.run_consistency_audit_evaluation --model qwen3.5:9b --output evaluation/consistency_audit_result.json
+```
+
+The live result must be reviewed before drawing conclusions about the verifier's false-accept/rejection behavior or latency. The fixture's expected labels are manually authored and should be reviewed if its wording or evidence is changed.
+
+
+## Consistency-audit output simplification and relation classifier (2026-11-18)
+
+The live targeted diagnostic showed that the normal contradiction control repeatedly exhausted the Ollama output budget: 5/5 runs at `num_predict=160` and 5/5 at `num_predict=320` ended with `done_reason=length` and malformed JSON. The generated text repeatedly reconsidered its own verdict instead of completing the response. Increasing the token budget therefore increased latency without resolving the output-contract failure.
+
+The second-pass auditor is narrowed to its actual responsibility: identify the conclusion explicitly stated in the first-pass `analyst_reason`, then let Python compare it with the first-pass `proposed_relation`. It does not independently re-analyze the evidence. The response contract is exactly one JSON field, `reason_relation`, with the enum values `supports`, `contradicts`, and `unclear`; Ollama's JSON Schema `format` constrains generation and Python validates the exact key set and allowed value. The production token budget and targeted evaluator default are 32. A first-pass relation of `insufficient` skips the second-pass audit because it cannot trigger a semantic upgrade. First-pass evidence reasoning, evidence-ID validation, distinct-source-group checks, and the fail-closed deterministic fallback remain unchanged.
+
+The live five-case diagnostic after this change completed 5/5 with correct decisions, zero false accepts, zero false rejections, and zero execution/parse errors. All responses ended with `done_reason=stop` and used 13–15 generated tokens. Mean latency was 2,944.16 ms (median 2,419.96 ms; maximum 5,040.81 ms). This is a five-case, single-repeat manually authored diagnostic, not a statistical benchmark or evidence of production generalization. The same-model critic limitation remains. Repeat the five targeted cases to assess run-to-run stability; the consumed M3.4 holdout must not be reused for tuning.
+
+
+## Historical compact boolean-auditor false-accept diagnostic (superseded 2026-11-18)
+
+The user ran the five targeted cases with Qwen3.5:9b at `num_predict=32`: all 5 completed with valid JSON and `done_reason=stop`; accuracy was 4/5 (0.80), with one false accept on `AUDIT-MISMATCH-CONTRADICTS`. The explanation explicitly said the computed 48,000 KRW supports the 48,000 KRW claim, while the proposed structured relation was `contradicts`; the boolean auditor accepted it. No false rejections or parse errors occurred. The normal contradiction control passed 5/5 repeated runs (accuracy 1.0; mean latency 2.22s, median 2.21s, max 2.27s). The five-case run mean latency was 2.97s, median 2.31s, max 5.61s. This is a small manually authored diagnostic, not a benchmark.
+
+The subsequent revision replaced the opaque boolean response with a strict `reason_relation` enum (`supports`, `contradicts`, `unclear`). The model classifies only the conclusion stated in the analyst explanation; Python compares that value with the original structured relation. Ambiguous or invalid values fail closed. This exposes the intermediate classification but does not eliminate model misclassification or same-model correlated errors. Validate both mismatch directions, ambiguity, and coherent controls, then create a fresh independent diagnostic set. Do not tune against the consumed M3.4 holdout.
+
+
+## Live relation-classification diagnostic result (2026-11-18)
+
+After replacing the boolean audit output with the explicit `reason_relation` enum, the user ran the five targeted fixtures locally with Qwen3.5:9b and `num_predict=32`:
+
+| Metric | Result |
+|---|---:|
+| Completed | 5/5 |
+| Correct decisions | 5/5 (100%) |
+| False accepts | 0 |
+| False rejections | 0 |
+| Execution / parse errors | 0 |
+| Mean latency | 2,944.16 ms |
+| Median latency | 2,419.96 ms |
+| Maximum latency | 5,040.81 ms |
+
+Both relation/reason mismatch directions and the ambiguous explanation were rejected; the coherent contradiction and support controls were accepted. All five Ollama responses ended with `done_reason=stop`; generated output lengths were 13–15 tokens, below the 32-token cap.
+
+This is a five-case, single-repeat manually authored diagnostic, not a statistical benchmark and not evidence of production generalization. The verifier still uses the same model family as the first-pass analyst, so correlated errors remain possible. The consumed M3.4 24-case holdout was not reused. The next validation is to repeat the five targeted cases (for example, `--repeat 5`) and run the complete mocked regression suite/CI; any new quality claim will still require a fresh untouched evaluation set or labelled real-world data.
+
+
+## Live consistency-audit repeat evaluation (user-run, 2026-11-21)
+
+Using `qwen3.5:9b`, `num_predict=32`, and `--repeat 5`, the five manually authored diagnostic fixtures were each executed five times (25 total calls).
+
+| Metric | Result |
+|---|---:|
+| Completed | 25/25 |
+| Correct decisions | 25/25 (100%) |
+| False accepts | 0 |
+| False rejections | 0 |
+| Execution / parse errors | 0 |
+| Mean latency | 2,829.65 ms |
+| Median latency | 2,435.99 ms |
+| Maximum latency | 12,103.98 ms |
+
+Each of the five fixtures produced the expected decision on all five repetitions: both mismatch directions and the ambiguous explanation were rejected; coherent contradiction and support controls were accepted. All responses ended with `done_reason=stop`; generated output lengths were 13–15 tokens, below the 32-token cap.
+
+The maximum latency came from the first request (12.10 s); the other 24 requests were approximately 2.40–2.52 s. This may reflect model/runtime warm-up, but the cause is not established by this run.
+
+Interpretation: the enum-based consistency auditor is repeatable on these five targeted fixtures under the tested local configuration. This is not a statistical benchmark, a broad reasoning-quality evaluation, or evidence of production generalization. The same model family is used for analysis and audit, so correlated errors remain possible. The consumed M3.4 holdout was not reused. A fresh untouched evaluation set or labelled real-world cases are required for broader quality claims.
+
+
+## Claim/evidence identifier integrity hardening (2026-11-23)
+
+- Added Pydantic validation that rejects duplicate Claim IDs, Evidence IDs, repeated cited Source IDs within a Claim, and duplicate (claim_id, evidence_id) link pairs in a ClaimAnalysisResult.
+- Source IDs are intentionally allowed to repeat across EvidencePassage records: one source can produce multiple distinct passages. The new duplicate-source check applies to the input source-record list before it is converted to a map or passage collection, preventing silent last-write-wins replacement of a duplicate source record.
+- Both reason_claim_evidence() and synthesize_claim_evidence() revalidate a serialized snapshot of incoming ClaimAnalysisResult objects. This also catches duplicate graph entries introduced by mutation after initial Pydantic construction.
+- synthesize_claim_evidence() separately rejects duplicate link pairs supplied through its optional reasoning_links argument.
+- Added regression tests for duplicate Claim IDs, Evidence IDs, cited source IDs, source records in passage building/retrieval, duplicate graph links, and duplicate synthesis links. Updated budget tests to use distinct evidence IDs instead of intentionally repeating the same link.
+- CI on PR #14 head 215b99e412fd203843a210931be73f9fd29059e3: GitHub Actions run 45170783483, unittest job 137679451746, passed all 209 Python tests (Ran 209 tests ... OK).
+- This hardening validates identifier and graph integrity; it does not improve or establish semantic reasoning accuracy. The PR remains Draft/open/unmerged and main remains unchanged.
