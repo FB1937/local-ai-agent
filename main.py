@@ -140,13 +140,52 @@ def main():
                     f"{check.get('reason')}"
                 )
         semantic = response.get("semantic_verification", {})
-        print(f"- 의미 검토 프로토타입: {'활성' if semantic.get('enabled') else '비활성'}")
+        print(
+            "- 기존 의미 검토 프로토타입: "
+            f"{'활성' if semantic.get('enabled') else '비활성'}"
+        )
+        if semantic.get("note"):
+            print(f"  상태: {semantic['note']}")
         for check in semantic.get("checks", []):
             print(
                 f"  - {check.get('model_assessment')} → {check.get('status')}: "
                 f"{check.get('claim')}"
             )
-        print("- 의미 검토 결과는 자동 사실 인증이 아닙니다.")
+
+        # M3 claim/evidence grounding is a separate reviewer. The legacy
+        # semantic reviewer is intentionally disabled while M3 is active.
+        m3 = response.get("claim_evidence_review", {})
+        m3_status = m3.get("status", "not_reported")
+        print(f"- M3 Claim/Evidence 검토: {m3_status}")
+        if m3.get("note"):
+            print(f"  상태: {m3['note']}")
+        if m3.get("error"):
+            print(f"  오류: {m3['error']}")
+        if m3.get("claim_count") is not None:
+            print(
+                f"  Claim: {m3.get('claim_count', 0)}개 / "
+                f"차단 {m3.get('blocking_claim_count', 0)}개 / "
+                f"근거 부족 {m3.get('insufficient_claim_count', 0)}개 / "
+                f"미평가 {m3.get('unassessed_claim_count', 0)}개"
+            )
+        for stage_name in ("pairwise", "semantic"):
+            metrics = m3.get(stage_name, {})
+            if metrics:
+                print(
+                    f"  {stage_name}: 평가 {metrics.get('assessed_count', 0)} / "
+                    f"미평가 {metrics.get('unassessed_count', 0)} / "
+                    f"건너뜀 {metrics.get('skipped_count', 0)}"
+                )
+        for stage_name, seconds in m3.get("timings_seconds", {}).items():
+            print(f"  {stage_name}: {seconds:.2f}초")
+        if m3.get("total_seconds") is not None:
+            print(f"  M3 전체 소요: {m3['total_seconds']:.2f}초")
+        for claim in m3.get("claims", []):
+            print(
+                f"  - {claim.get('claim_id')}: {claim.get('status')} / "
+                f"{claim.get('reason', '')}"
+            )
+        print("- 검토 결과는 자동 사실 인증이 아닙니다.")
 
 
 if __name__ == "__main__":
