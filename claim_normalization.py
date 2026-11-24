@@ -93,7 +93,7 @@ def _priority_round_robin(
 
 def normalize_claim_analysis(
     analysis: ClaimAnalysisResult, *, max_links: int = 20,
-) -> tuple[ClaimAnalysisResult, list[ClaimEvidenceLink], list[dict]]:
+) -> tuple[ClaimAnalysisResult, list[ClaimEvidenceLink], list[ClaimEvidenceLink], list[dict]]:
     """Filter obvious scaffolding, prioritize material claims, and select calls.
 
     Returns the normalized graph, links selected for model assessment, and an
