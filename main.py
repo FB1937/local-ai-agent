@@ -176,6 +176,34 @@ def main():
                     f"미평가 {metrics.get('unassessed_count', 0)} / "
                     f"건너뜀 {metrics.get('skipped_count', 0)}"
                 )
+        retrieval = m3.get("retrieval", {})
+        if retrieval:
+            print(
+                "  [근거 검색 진단] "
+                f"Claim {retrieval.get('claim_count', 0)}개 / "
+                f"인용 포함 {retrieval.get('claims_with_citations', 0)}개 / "
+                f"근거 구절 {retrieval.get('passage_count', 0)}개 / "
+                f"Claim-Evidence 연결 {retrieval.get('claim_evidence_link_count', 0)}개"
+            )
+            if retrieval.get("claims_without_citations"):
+                print("    인용 없는 Claim: " + ", ".join(retrieval["claims_without_citations"]))
+            if retrieval.get("claims_without_evidence"):
+                print("    근거 없는 Claim: " + ", ".join(retrieval["claims_without_evidence"]))
+            if retrieval.get("unmapped_source_ids"):
+                print("    찾지 못한 출처 ID: " + ", ".join(retrieval["unmapped_source_ids"]))
+            for item in retrieval.get("claims", []):
+                print(
+                    f"    {item.get('claim_id')}: 인용 {','.join(item.get('cited_source_ids', [])) or '없음'} / "
+                    f"구절 {item.get('passage_count', 0)} / 연결 {item.get('linked_passage_count', 0)} / "
+                    f"검색 방식 {','.join(item.get('retrieval_methods', [])) or '없음'}"
+                )
+            for source in retrieval.get("sources", []):
+                print(
+                    f"    출처 {source.get('source_id')}: 추출 상태 {source.get('extraction_status')} / "
+                    f"추출 텍스트 {source.get('extracted_text_chars', 0)}자 / "
+                    f"본문 {source.get('content_chars', 0)}자 / "
+                    f"사용 본문 {source.get('body_chars_used', 0)}자 ({source.get('body_source')})"
+                )
         for stage_name, seconds in m3.get("timings_seconds", {}).items():
             print(f"  {stage_name}: {seconds:.2f}초")
         if m3.get("total_seconds") is not None:
