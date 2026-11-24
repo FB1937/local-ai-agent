@@ -54,6 +54,7 @@ def evaluate_response_claims(
             claim_passages = passages_by_claim.get(claim.claim_id, [])
             claim_retrieval.append({
                 "claim_id": claim.claim_id,
+                "text": claim.text,
                 "cited_source_ids": list(claim.cited_source_ids),
                 "passage_count": len(claim_passages),
                 "linked_passage_count": len(claim_links),
@@ -98,6 +99,30 @@ def evaluate_response_claims(
             analysis, max_links=max_links, timeout=timeout, request_fn=request_fn,
         )
         timings["pairwise_reasoning"] = perf_counter() - step
+
+        # Expose the exact passage and pairwise label behind each claim status.
+        # This is diagnostic only; it does not change synthesis or blocking policy.
+        passages_by_id = {item.evidence_id: item for item in analysis.passages}
+        reasoning_by_claim: dict[str, list] = {}
+        for link in reasoning.links:
+            reasoning_by_claim.setdefault(link.claim_id, []).append(link)
+        for item in retrieval_diagnostics["claims"]:
+            details = []
+            for link in reasoning_by_claim.get(item["claim_id"], []):
+                passage = passages_by_id.get(link.evidence_id)
+                if passage is None:
+                    continue
+                details.append({
+                    "evidence_id": passage.evidence_id,
+                    "source_id": passage.source_id,
+                    "relation": link.relation,
+                    "reason": link.reason,
+                    "text": passage.text,
+                    "retrieval_method": passage.retrieval_method,
+                    "retrieval_score": passage.retrieval_score,
+                    "location": passage.location,
+                })
+            item["evidence"] = details
 
         step = perf_counter()
         baseline = synthesize_claim_evidence(analysis, reasoning.links)
