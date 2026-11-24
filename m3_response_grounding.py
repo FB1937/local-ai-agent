@@ -41,7 +41,6 @@ def evaluate_response_claims(
         # Preserve retrieval provenance so an "insufficient" result can be
         # diagnosed as missing citations, missing source text, or no matching
         # passages instead of exposing only the final status.
-        passage_by_id = {item.evidence_id: item for item in analysis.passages}
         links_by_claim: dict[str, list] = {}
         for link in analysis.links:
             links_by_claim.setdefault(link.claim_id, []).append(link)
