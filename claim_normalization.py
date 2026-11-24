@@ -17,6 +17,12 @@ _META_PATTERNS = (
     re.compile(r"^(?:검색|제공된)\s*(?:결과|자료|정보)(?:를|에|만을)\s*(?:바탕으로|기준으로|통해)"),
     re.compile(r"^(?:먼저|다음으로|마지막으로)\s*(?:살펴보겠습니다|확인하겠습니다|정리하겠습니다)"),
 )
+_SECTION_LABEL_RE = re.compile(
+    r"(?:주요\s*변경\s*사항|주요\s*내용|개요|결론|요약|정리|참고|"
+    r"권장\s*방법|사용법|장점|단점|원인|이유|"
+    r"overview|summary|conclusion|key points|major changes|references|results)",
+    re.IGNORECASE,
+)
 _IMPORTANT_RE = re.compile(
     r"(?:\d|%|최신|현재|기준|출시|발표|버전|날짜|기간|가격|요금|한도|"
     r"최소|최대|필수|요구|지원|보안|취약|정책|법률|규정|권장|공식)",
@@ -41,7 +47,7 @@ def _is_structural_or_meta(text: str) -> tuple[bool, str | None]:
     # Short, non-sentential labels are headings; retain complete declarative
     # sentences even when they are short (e.g. "Python 3.15 is stable.").
     if len(value) <= 100 and not re.search(r"[.!?。！？][\s\]]*$", value):
-        if value.endswith(":") or len(value.split()) <= 8:
+        if value.endswith(":") or _SECTION_LABEL_RE.search(value):
             return True, "section_label"
     if any(pattern.search(value) for pattern in _META_PATTERNS):
         return True, "answer_scaffolding"
