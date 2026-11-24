@@ -112,7 +112,7 @@ class M4Stage6IntegrationTests(unittest.TestCase):
         semantic = SemanticClaimSynthesisReport(
             claims=[], assessed_count=1, unassessed_count=2, skipped_count=3,
         )
-        with patch("m3_response_grounding.analyze_claim_evidence", return_value=object()), \
+        with patch("m3_response_grounding.analyze_claim_evidence", return_value=ClaimAnalysisResult(claims=[Claim(claim_id="C1", text="Claim")])), \
              patch("m3_response_grounding.reason_claim_evidence", return_value=reasoning), \
              patch("m3_response_grounding.synthesize_claim_evidence", return_value=baseline), \
              patch("m3_response_grounding.synthesize_claim_evidence_semantically",
