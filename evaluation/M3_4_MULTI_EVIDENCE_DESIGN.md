@@ -231,3 +231,18 @@ Interpretation: the enum-based consistency auditor is repeatable on these five t
 - Added regression tests for duplicate Claim IDs, Evidence IDs, cited source IDs, source records in passage building/retrieval, duplicate graph links, and duplicate synthesis links. Updated budget tests to use distinct evidence IDs instead of intentionally repeating the same link.
 - CI on PR #14 head 215b99e412fd203843a210931be73f9fd29059e3: GitHub Actions run 45170783483, unittest job 137679451746, passed all 209 Python tests (Ran 209 tests ... OK).
 - This hardening validates identifier and graph integrity; it does not improve or establish semantic reasoning accuracy. The PR remains Draft/open/unmerged and main remains unchanged.
+
+
+## M4.1 Stage 6 integration adapter (2026-11-24)
+
+The M3 modules are now connected to Stage 6 through `m3_response_grounding.py`. The adapter orchestrates the existing claim analysis, bounded pairwise reasoning, deterministic synthesis, and bounded semantic synthesis without changing their individual contracts.
+
+- `response_generator.generate_response()` invokes M3 only when `ENABLE_M3_CLAIM_GROUNDING=1`, route is SEARCH or HYBRID, and answer generation completed successfully.
+- DIRECT does not invoke M3. Failed or incomplete answer generation skips M3.
+- Existing source-contract validation and `validate_answer()` run first and retain precedence.
+- When M3 is enabled, the legacy `ENABLE_SEMANTIC_GROUNDING` reviewer is not run, avoiding duplicate semantic review calls.
+- `contradicted`, `conflict`, `unassessed`, and adapter-level errors hold the generated answer. `insufficient` remains visible with an explicit evidence limitation notice. `supported` is not described as factual certification.
+- The adapter reports claim statuses, pairwise and semantic assessed/unassessed/skipped counters, configured budgets, per-stage elapsed seconds, and total elapsed seconds. Errors are represented explicitly and fail closed.
+- The feature flag defaults to disabled (`0`) to avoid silently adding up to 30 local model requests to existing responses before latency and behavior are measured. Enable explicitly for local testing with `ENABLE_M3_CLAIM_GROUNDING=1`. This is an integrated opt-in path, not yet a production-default activation.
+- Added Stage 6 regression tests for SEARCH, DIRECT, HYBRID, blocking, generation-incomplete skip, legacy verifier mutual exclusion, adapter counters, and adapter failure behavior.
+- Local Python tests and live Ollama checks have not yet been run from the user's Windows environment. GitHub Actions results will be recorded after the integration PR is opened.
