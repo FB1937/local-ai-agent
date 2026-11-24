@@ -8,6 +8,7 @@ from __future__ import annotations
 from time import perf_counter
 
 from claim_analysis import analyze_claim_evidence
+from claim_normalization import normalize_claim_analysis
 from evidence_reasoner import reason_claim_evidence
 from claim_synthesis import synthesize_claim_evidence
 from semantic_claim_synthesis import synthesize_claim_evidence_semantically
@@ -35,7 +36,10 @@ def evaluate_response_claims(
     timings: dict[str, float] = {}
     try:
         step = perf_counter()
-        analysis = analyze_claim_evidence(answer, sources)
+        raw_analysis = analyze_claim_evidence(answer, sources)
+        analysis, selected_links, budget_skipped_links, excluded_claims = normalize_claim_analysis(
+            raw_analysis, max_links=max_links,
+        )
         timings["claim_analysis"] = perf_counter() - step
 
         # Preserve retrieval provenance so an "insufficient" result can be
@@ -82,6 +86,8 @@ def evaluate_response_claims(
             })
         retrieval_diagnostics = {
             "claim_count": len(analysis.claims),
+            "excluded_claim_count": len(excluded_claims),
+            "excluded_claims": excluded_claims,
             "claims_with_citations": sum(bool(item.cited_source_ids) for item in analysis.claims),
             "claims_without_citations": [
                 item.claim_id for item in analysis.claims if not item.cited_source_ids
@@ -95,17 +101,30 @@ def evaluate_response_claims(
         }
 
         step = perf_counter()
+        selected_analysis = analysis.model_copy(update={"links": selected_links})
         reasoning = reason_claim_evidence(
-            analysis, max_links=max_links, timeout=timeout, request_fn=request_fn,
+            selected_analysis, max_links=max_links, timeout=timeout, request_fn=request_fn,
         )
+        reasoning_by_pair = {
+            (link.claim_id, link.evidence_id): link for link in reasoning.links
+        }
+        # Preserve every retrieved link for deterministic synthesis. Links not
+        # selected by the M4.2 budget planner remain explicitly unassessed.
+        combined_reasoning_links = [
+            reasoning_by_pair.get(
+                (link.claim_id, link.evidence_id),
+                link.model_copy(update={
+                    "relation": None,
+                    "reason": "M4.2 검증 예산 초과로 모델 판정을 수행하지 않았습니다.",
+                }),
+            )
+            for link in analysis.links
+        ]
         timings["pairwise_reasoning"] = perf_counter() - step
 
         # Expose the exact passage and pairwise label behind each claim status.
         # This is diagnostic only; it does not change synthesis or blocking policy.
         passages_by_id = {item.evidence_id: item for item in analysis.passages}
-        reasoning_by_pair = {
-            (link.claim_id, link.evidence_id): link for link in reasoning.links
-        }
         analysis_links_by_claim: dict[str, list] = {}
         for link in analysis.links:
             analysis_links_by_claim.setdefault(link.claim_id, []).append(link)
@@ -134,7 +153,7 @@ def evaluate_response_claims(
             item["evidence"] = details
 
         step = perf_counter()
-        baseline = synthesize_claim_evidence(analysis, reasoning.links)
+        baseline = synthesize_claim_evidence(analysis, combined_reasoning_links)
         timings["deterministic_synthesis"] = perf_counter() - step
 
         step = perf_counter()
@@ -165,7 +184,10 @@ def evaluate_response_claims(
             "pairwise": {
                 "assessed_count": reasoning.assessed_count,
                 "unassessed_count": reasoning.unassessed_count,
-                "skipped_count": reasoning.skipped_count,
+                "skipped_count": reasoning.skipped_count + len(budget_skipped_links),
+                "budget_skipped_count": len(budget_skipped_links),
+                "selected_link_count": len(selected_links),
+                "available_link_count": len(analysis.links),
                 "call_budget": max_links,
             },
             "semantic": {
@@ -191,6 +213,7 @@ def evaluate_response_claims(
                 "claim_count": 0, "claims_with_citations": 0,
                 "claims_without_citations": [], "passage_count": 0,
                 "claim_evidence_link_count": 0, "claims_without_evidence": [],
+                "excluded_claim_count": 0, "excluded_claims": [],
                 "unmapped_source_ids": [], "claims": [], "sources": [],
             },
             "claim_count": 0,
@@ -199,7 +222,9 @@ def evaluate_response_claims(
             "unassessed_claim_count": 0,
             "pairwise": {
                 "assessed_count": 0, "unassessed_count": 0,
-                "skipped_count": 0, "call_budget": max_links,
+                "skipped_count": 0, "budget_skipped_count": 0,
+                "selected_link_count": 0, "available_link_count": 0,
+                "call_budget": max_links,
             },
             "semantic": {
                 "assessed_count": 0, "unassessed_count": 0,
