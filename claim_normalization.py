@@ -128,4 +128,4 @@ def normalize_claim_analysis(
         ],
     )
     # The skipped links are returned separately for explicit unassessed accounting.
-    return normalized_analysis, selected, excluded
+    return normalized_analysis, selected, skipped, excluded
