@@ -157,6 +157,10 @@ class M4Stage6IntegrationTests(unittest.TestCase):
         self.assertEqual(retrieval["claims_without_evidence"], [])
         self.assertEqual(retrieval["claims"][0]["cited_source_ids"], ["S1"])
         self.assertEqual(retrieval["claims"][0]["passage_count"], 1)
+        self.assertEqual(retrieval["claims"][0]["text"], "The system launched in 2025 after a long public testing period. [S1]")
+        self.assertEqual(len(retrieval["claims"][0]["evidence"]), 1)
+        self.assertEqual(retrieval["claims"][0]["evidence"][0]["source_id"], "S1")
+        self.assertEqual(retrieval["claims"][0]["evidence"][0]["relation"], None)
         self.assertEqual(retrieval["sources"][0]["extraction_status"], "success")
         self.assertGreater(retrieval["sources"][0]["extracted_text_chars"], 40)
 
