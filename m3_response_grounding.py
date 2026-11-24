@@ -59,6 +59,7 @@ def evaluate_response_claims(
             claim_retrieval.append({
                 "claim_id": claim.claim_id,
                 "text": claim.text,
+                "importance": claim.importance,
                 "cited_source_ids": list(claim.cited_source_ids),
                 "passage_count": len(claim_passages),
                 "linked_passage_count": len(claim_links),
